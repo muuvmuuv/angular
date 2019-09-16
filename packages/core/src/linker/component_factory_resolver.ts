@@ -7,8 +7,8 @@
  */
 
 import {Injector} from '../di/injector';
-import {Type} from '../type';
-import {stringify} from '../util';
+import {Type} from '../interface/type';
+import {stringify} from '../util/stringify';
 
 import {ComponentFactory, ComponentRef} from './component_factory';
 import {NgModuleRef} from './ng_module_factory';
@@ -34,10 +34,20 @@ class _NullComponentFactoryResolver implements ComponentFactoryResolver {
 }
 
 /**
+ * A simple registry that maps `Components` to generated `ComponentFactory` classes
+ * that can be used to create instances of components.
+ * Use to obtain the factory for a given component type,
+ * then use the factory's `create()` method to create a component of that type.
+ *
+ * @see [Dynamic Components](guide/dynamic-component-loader)
  * @publicApi
  */
 export abstract class ComponentFactoryResolver {
   static NULL: ComponentFactoryResolver = new _NullComponentFactoryResolver();
+  /**
+   * Retrieves the factory object that creates a component of the given type.
+   * @param component The component type.
+   */
   abstract resolveComponentFactory<T>(component: Type<T>): ComponentFactory<T>;
 }
 

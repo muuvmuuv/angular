@@ -90,6 +90,8 @@ The `installMode` determines how these resources are initially cached. The `inst
 
 * `lazy` does not cache any of the resources up front. Instead, the Angular service worker only caches resources for which it receives requests. This is an on-demand caching mode. Resources that are never requested will not be cached. This is useful for things like images at different resolutions, so the service worker only caches the correct assets for the particular screen and orientation.
 
+Defaults to `prefetch`.
+
 ### `updateMode`
 
 For resources already in the cache, the `updateMode` determines the caching behavior when a new version of the app is discovered. Any resources in the group that have changed since the previous version are updated in accordance with `updateMode`.
@@ -97,6 +99,8 @@ For resources already in the cache, the `updateMode` determines the caching beha
 * `prefetch` tells the service worker to download and cache the changed resources immediately.
 
 * `lazy` tells the service worker to not cache those resources. Instead, it treats them as unrequested and waits until they're requested again before updating them. An `updateMode` of `lazy` is only valid if the `installMode` is also `lazy`.
+
+Defaults to the value `installMode` is set to.
 
 ### `resources`
 
@@ -133,15 +137,16 @@ export interface DataGroup {
 Similar to `assetGroups`, every data group has a `name` which uniquely identifies it.
 
 ### `urls`
-A list of URL patterns. URLs that match these patterns will be cached according to this data group's policy.<br>
-  _(Negative glob patterns are not supported and `?` will be matched literally; i.e. it will not match any character other than `?`.)_
+A list of URL patterns. URLs that match these patterns are cached according to this data group's policy. Only non-mutating requests (GET and HEAD) are cached.
+ * Negative glob patterns are not supported.
+ * `?` is matched literally; that is, it matches *only* the character `?`.
 
 ### `version`
 Occasionally APIs change formats in a way that is not backward-compatible. A new version of the app may not be compatible with the old API format and thus may not be compatible with existing cached resources from that API.
 
 `version` provides a mechanism to indicate that the resources being cached have been updated in a backwards-incompatible way, and that the old cache entries&mdash;those from previous versions&mdash;should be discarded.
 
-`version` is an integer field and defaults to `0`.
+`version` is an integer field and defaults to `1`.
 
 ### `cacheConfig`
 This section defines the policy by which matching requests will be cached.
@@ -175,7 +180,7 @@ For example, the string `5s30u` will translate to five seconds and 30 millisecon
 
 The Angular service worker can use either of two caching strategies for data resources.
 
-* `performance`, the default, optimizes for responses that are as fast as possible. If a resource exists in the cache, the cached version is used. This allows for some staleness, depending on the `maxAge`, in exchange for better performance. This is suitable for resources that don't change often; for example, user avatar images.
+* `performance`, the default, optimizes for responses that are as fast as possible. If a resource exists in the cache, the cached version is used, and no network request is made. This allows for some staleness, depending on the `maxAge`, in exchange for better performance. This is suitable for resources that don't change often; for example, user avatar images.
 
 * `freshness` optimizes for currency of data, preferentially fetching requested data from the network. Only if the network times out, according to `timeout`, does the request fall back to the cache. This is useful for resources that change frequently; for example, account balances.
 

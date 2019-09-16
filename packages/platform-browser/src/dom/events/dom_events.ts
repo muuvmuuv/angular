@@ -6,11 +6,8 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {isPlatformServer} from '@angular/common';
+import {DOCUMENT, isPlatformServer} from '@angular/common';
 import {Inject, Injectable, NgZone, Optional, PLATFORM_ID} from '@angular/core';
-
-
-import {DOCUMENT} from '../dom_tokens';
 
 import {EventManagerPlugin} from './event_manager';
 
@@ -21,9 +18,8 @@ import {EventManagerPlugin} from './event_manager';
  * addEventListener by 3x.
  */
 const __symbol__ =
-    (typeof Zone !== 'undefined') && (Zone as any)['__symbol__'] || function(v: string): string {
-      return '__zone_symbol__' + v;
-    };
+    (() => (typeof Zone !== 'undefined') && (Zone as any)['__symbol__'] ||
+         function(v: string): string { return '__zone_symbol__' + v; })();
 const ADD_EVENT_LISTENER: 'addEventListener' = __symbol__('addEventListener');
 const REMOVE_EVENT_LISTENER: 'removeEventListener' = __symbol__('removeEventListener');
 
@@ -38,13 +34,18 @@ const NATIVE_REMOVE_LISTENER = 'removeEventListener';
 const stopSymbol = '__zone_symbol__propagationStopped';
 const stopMethodSymbol = '__zone_symbol__stopImmediatePropagation';
 
-const blackListedEvents: string[] =
-    (typeof Zone !== 'undefined') && (Zone as any)[__symbol__('BLACK_LISTED_EVENTS')];
-let blackListedMap: {[eventName: string]: string};
-if (blackListedEvents) {
-  blackListedMap = {};
-  blackListedEvents.forEach(eventName => { blackListedMap[eventName] = eventName; });
-}
+
+const blackListedMap = (() => {
+  const blackListedEvents: string[] =
+      (typeof Zone !== 'undefined') && (Zone as any)[__symbol__('BLACK_LISTED_EVENTS')];
+  if (blackListedEvents) {
+    const res: {[eventName: string]: string} = {};
+    blackListedEvents.forEach(eventName => { res[eventName] = eventName; });
+    return res;
+  }
+  return undefined;
+})();
+
 
 const isBlackListedEvent = function(eventName: string) {
   if (!blackListedMap) {
@@ -60,7 +61,7 @@ interface TaskData {
 
 // a global listener to handle all dom event,
 // so we do not need to create a closure every time
-const globalListener = function(event: Event) {
+const globalListener = function(this: any, event: Event) {
   const symbolName = symbolNames[event.type];
   if (!symbolName) {
     return;
@@ -122,15 +123,17 @@ export class DomEventsPlugin extends EventManagerPlugin {
     }
     const delegate = (Event.prototype as any)[stopMethodSymbol] =
         Event.prototype.stopImmediatePropagation;
-    Event.prototype.stopImmediatePropagation = function() {
+    Event.prototype.stopImmediatePropagation = function(this: any) {
       if (this) {
         this[stopSymbol] = true;
       }
 
-      // should call native delegate in case
-      // in some environment part of the application
-      // will not use the patched Event
-      delegate && delegate.apply(this, arguments);
+      // We should call native delegate in case in some environment part of
+      // the application will not use the patched Event. Also we cast the
+      // "arguments" to any since "stopImmediatePropagation" technically does not
+      // accept any arguments, but we don't know what developers pass through the
+      // function and we want to not break these calls.
+      delegate && delegate.apply(this, arguments as any);
     };
   }
 

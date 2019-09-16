@@ -12,12 +12,12 @@ import {Router} from '@angular/router';
 import {UpgradeModule} from '@angular/upgrade/static';
 
 /**
- * @description
+ * Creates an initializer that sets up `ngRoute` integration
+ * along with setting up the Angular router.
  *
- * Creates an initializer that in addition to setting up the Angular
- * router sets up the ngRoute integration.
+ * @usageNotes
  *
- * ```
+ * <code-example language="typescript">
  * @NgModule({
  *  imports: [
  *   RouterModule.forRoot(SOME_ROUTES),
@@ -30,7 +30,7 @@ import {UpgradeModule} from '@angular/upgrade/static';
  * export class AppModule {
  *   ngDoBootstrap() {}
  * }
- * ```
+ * </code-example>
  *
  * @publicApi
  */
@@ -49,16 +49,18 @@ export function locationSyncBootstrapListener(ngUpgrade: UpgradeModule) {
 }
 
 /**
- * @description
+ * Sets up a location change listener to trigger `history.pushState`.
+ * Works around the problem that `onPopState` does not trigger `history.pushState`.
+ * Must be called *after* calling `UpgradeModule.bootstrap`.
  *
- * Sets up a location synchronization.
- *
- * History.pushState does not fire onPopState, so the Angular location
- * doesn't detect it. The workaround is to attach a location change listener
+ * @param ngUpgrade The upgrade NgModule.
+ * @param urlType The location strategy.
+ * @see `HashLocationStrategy`
+ * @see `PathLocationStrategy`
  *
  * @publicApi
  */
-export function setUpLocationSync(ngUpgrade: UpgradeModule) {
+export function setUpLocationSync(ngUpgrade: UpgradeModule, urlType: 'path' | 'hash' = 'path') {
   if (!ngUpgrade.$injector) {
     throw new Error(`
         RouterUpgradeInitializer can be used only after UpgradeModule.bootstrap has been called.
@@ -71,14 +73,23 @@ export function setUpLocationSync(ngUpgrade: UpgradeModule) {
 
   ngUpgrade.$injector.get('$rootScope')
       .$on('$locationChangeStart', (_: any, next: string, __: string) => {
-        const url = resolveUrl(next);
+        let url;
+        if (urlType === 'path') {
+          url = resolveUrl(next);
+        } else if (urlType === 'hash') {
+          // Remove the first hash from the URL
+          const hashIdx = next.indexOf('#');
+          url = resolveUrl(next.substring(0, hashIdx) + next.substring(hashIdx + 1));
+        } else {
+          throw 'Invalid URLType passed to setUpLocationSync: ' + urlType;
+        }
         const path = location.normalize(url.pathname);
         router.navigateByUrl(path + url.search + url.hash);
       });
 }
 
 /**
- * Normalize and parse a URL.
+ * Normalizes and parses a URL.
  *
  * - Normalizing means that a relative URL will be resolved into an absolute URL in the context of
  *   the application document.

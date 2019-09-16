@@ -258,7 +258,7 @@ export class DataGroup {
       const table = await this.lruTable;
       try {
         this._lru = new LruList(await table.read<LruState>('lru'));
-      } catch (e) {
+      } catch {
         this._lru = new LruList();
       }
     }
@@ -354,10 +354,11 @@ export class DataGroup {
 
       // Cache the network response eventually.
       ctx.waitUntil(this.safeCacheResponse(req, networkFetch));
+    } else {
+      // The request completed in time, so cache it inline with the response flow.
+      await this.cacheResponse(req, res, lru);
     }
 
-    // The request completed in time, so cache it inline with the response flow.
-    await this.cacheResponse(req, res, lru);
     return res;
   }
 
@@ -371,13 +372,13 @@ export class DataGroup {
     // If that fetch errors, treat it as a timed out request.
     try {
       res = await timeoutFetch;
-    } catch (e) {
+    } catch {
       res = undefined;
     }
 
     // If the network fetch times out or errors, fall back on the cache.
     if (res === undefined) {
-      ctx.waitUntil(this.safeCacheResponse(req, networkFetch));
+      ctx.waitUntil(this.safeCacheResponse(req, networkFetch, true));
 
       // Ignore the age, the network response will be cached anyway due to the
       // behavior of freshness.
@@ -394,9 +395,7 @@ export class DataGroup {
     }
 
     // No response in the cache. No choice but to fall back on the full network fetch.
-    res = await networkFetch;
-    await this.cacheResponse(req, res, lru, true);
-    return res;
+    return networkFetch;
   }
 
   private networkFetchWithTimeout(req: Request): [Promise<Response|undefined>, Promise<Response>] {
@@ -407,7 +406,7 @@ export class DataGroup {
       const safeNetworkFetch = (async() => {
         try {
           return await networkFetch;
-        } catch (err) {
+        } catch {
           return this.adapter.newResponse(null, {
             status: 504,
             statusText: 'Gateway Timeout',
@@ -417,7 +416,7 @@ export class DataGroup {
       const networkFetchUndefinedError = (async() => {
         try {
           return await networkFetch;
-        } catch (err) {
+        } catch {
           return undefined;
         }
       })();
@@ -433,10 +432,11 @@ export class DataGroup {
     }
   }
 
-  private async safeCacheResponse(req: Request, res: Promise<Response>): Promise<void> {
+  private async safeCacheResponse(req: Request, res: Promise<Response>, okToCacheOpaque?: boolean):
+      Promise<void> {
     try {
-      await this.cacheResponse(req, await res, await this.lru());
-    } catch (e) {
+      await this.cacheResponse(req, await res, await this.lru(), okToCacheOpaque);
+    } catch {
       // TODO: handle this error somehow?
     }
   }
@@ -460,7 +460,7 @@ export class DataGroup {
         }
 
         // Otherwise, or if there was an error, assume the response is expired, and evict it.
-      } catch (e) {
+      } catch {
         // Some error getting the age for the response. Assume it's expired.
       }
 
@@ -480,10 +480,10 @@ export class DataGroup {
    * If the request times out on the server, an error will be returned but the real network
    * request will still be running in the background, to be cached when it completes.
    */
-  private async cacheResponse(
-      req: Request, res: Response, lru: LruList, okToCacheOpaque: boolean = false): Promise<void> {
+  private async cacheResponse(req: Request, res: Response, lru: LruList, okToCacheOpaque = false):
+      Promise<void> {
     // Only cache successful responses.
-    if (!res.ok || (okToCacheOpaque && res.type === 'opaque')) {
+    if (!(res.ok || (okToCacheOpaque && res.type === 'opaque'))) {
       return;
     }
 
@@ -546,7 +546,7 @@ export class DataGroup {
   private async safeFetch(req: Request): Promise<Response> {
     try {
       return this.scope.fetch(req);
-    } catch (err) {
+    } catch {
       return this.adapter.newResponse(null, {
         status: 504,
         statusText: 'Gateway Timeout',

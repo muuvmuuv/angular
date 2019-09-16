@@ -708,17 +708,23 @@ export class TransitionAnimationEngine {
     }
   }
 
-  removeNode(namespaceId: string, element: any, context: any): void {
-    if (!isElementNode(element)) {
-      this._onRemovalComplete(element, context);
-      return;
-    }
+  removeNode(namespaceId: string, element: any, isHostElement: boolean, context: any): void {
+    if (isElementNode(element)) {
+      const ns = namespaceId ? this._fetchNamespace(namespaceId) : null;
+      if (ns) {
+        ns.removeNode(element, context);
+      } else {
+        this.markElementAsRemoved(namespaceId, element, false, context);
+      }
 
-    const ns = namespaceId ? this._fetchNamespace(namespaceId) : null;
-    if (ns) {
-      ns.removeNode(element, context);
+      if (isHostElement) {
+        const hostNS = this.namespacesByHostElement.get(element);
+        if (hostNS && hostNS.id !== namespaceId) {
+          hostNS.removeNode(element, context);
+        }
+      }
     } else {
-      this.markElementAsRemoved(namespaceId, element, false, context);
+      this._onRemovalComplete(element, context);
     }
   }
 
@@ -1312,7 +1318,7 @@ export class TransitionAnimationEngine {
       const previousPlayers = this._getPreviousPlayers(
           element, isQueriedElement, targetNameSpaceId, targetTriggerName, instruction.toState);
       previousPlayers.forEach(player => {
-        const realPlayer = player.getRealPlayer() as any;
+        const realPlayer = (player as TransitionAnimationPlayer).getRealPlayer() as any;
         if (realPlayer.beforeDestroy) {
           realPlayer.beforeDestroy();
         }

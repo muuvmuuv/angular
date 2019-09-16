@@ -69,8 +69,7 @@ export abstract class AssetGroup {
 
     // Determine the origin from the registration scope. This is used to differentiate between
     // relative and absolute URLs.
-    this.origin =
-        this.adapter.parseUrl(this.scope.registration.scope, this.scope.registration.scope).origin;
+    this.origin = this.adapter.parseUrl(this.scope.registration.scope).origin;
   }
 
   async cacheStatus(url: string): Promise<UpdateCacheStatus> {
@@ -212,7 +211,7 @@ export abstract class AssetGroup {
           // Check the metadata table. If a timestamp is there, use it.
           const metaTable = await this.metadata;
           ts = (await metaTable.read<UrlMetadata>(req.url)).ts;
-        } catch (e) {
+        } catch {
           // Otherwise, look for a Date header.
           const date = res.headers.get('Date');
           if (date === null) {
@@ -224,7 +223,7 @@ export abstract class AssetGroup {
         }
         const age = this.adapter.time - ts;
         return age < 0 || age > maxAge;
-      } catch (e) {
+      } catch {
         // Assume stale.
         return true;
       }
@@ -235,7 +234,7 @@ export abstract class AssetGroup {
         // The request needs to be revalidated if the current time is later than the expiration
         // time, if it parses correctly.
         return this.adapter.time > Date.parse(expiresStr);
-      } catch (e) {
+      } catch {
         // The expiration date failed to parse, so revalidate as a precaution.
         return true;
       }
@@ -263,7 +262,7 @@ export abstract class AssetGroup {
     let metadata: UrlMetadata|undefined = undefined;
     try {
       metadata = await metaTable.read<UrlMetadata>(url);
-    } catch (e) {
+    } catch {
       // Do nothing, not found. This shouldn't happen, but it can be handled.
     }
 
@@ -487,7 +486,7 @@ export abstract class AssetGroup {
   protected async safeFetch(req: Request): Promise<Response> {
     try {
       return await this.scope.fetch(req);
-    } catch (err) {
+    } catch {
       return this.adapter.newResponse('', {
         status: 504,
         statusText: 'Gateway Timeout',

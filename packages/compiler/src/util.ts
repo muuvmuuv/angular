@@ -184,6 +184,10 @@ export function stringify(token: any): string {
     return `${token.name}`;
   }
 
+  if (!token.toString) {
+    return 'object';
+  }
+
   // WARNING: do not try to `JSON.stringify(token)` here
   // see https://github.com/angular/angular/issues/23440
   const res = token.toString();
@@ -249,3 +253,13 @@ const __global = typeof global !== 'undefined' && global;
 // should be __global in that case.
 const _global: {[name: string]: any} = __global || __window || __self;
 export {_global as global};
+
+export function newArray<T = any>(size: number): T[];
+export function newArray<T>(size: number, value: T): T[];
+export function newArray<T>(size: number, value?: T): T[] {
+  const list: T[] = [];
+  for (let i = 0; i < size; i++) {
+    list.push(value !);
+  }
+  return list;
+}

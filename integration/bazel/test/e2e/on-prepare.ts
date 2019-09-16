@@ -1,8 +1,8 @@
 import { browser } from 'protractor';
-import {OnPrepareConfig, runServer} from '@angular/bazel/protractor-utils';
+import {OnPrepareConfig, runServer} from '@bazel/protractor/protractor-utils';
 
 export = function(config: OnPrepareConfig) {
-  const portFlag = config.server.endsWith('prodserver') ? '-p' : '-port';
+  const portFlag = /prodserver(\.exe)?$/.test(config.server) ? '-p' : '-port';
   return runServer(config.workspace, config.server, portFlag, [])
     .then(serverSpec => {
       const serverUrl = `http://localhost:${serverSpec.port}`;

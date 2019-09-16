@@ -36,15 +36,16 @@ import {isUrlTree} from './utils/type_guards';
 /**
  * @description
  *
- * Represents the extra options used during navigation.
+ * Options that modify the navigation strategy.
  *
  * @publicApi
  */
 export interface NavigationExtras {
   /**
-   * Enables relative navigation from the current ActivatedRoute.
+   * Specifies a root URI to use for relative navigation.
    *
-   * Configuration:
+   * For example, consider the following route configuration where the parent route
+   * has two children.
    *
    * ```
    * [{
@@ -60,7 +61,8 @@ export interface NavigationExtras {
   * }]
    * ```
    *
-   * Navigate to list route from child route:
+   * The following `go()` function navigates to the `list` route by
+   * interpreting the destination URI as relative to the activated `child`  route
    *
    * ```
    *  @Component({...})
@@ -96,21 +98,18 @@ export interface NavigationExtras {
   fragment?: string;
 
   /**
-   * Preserves the query parameters for the next navigation.
-   *
-   * deprecated, use `queryParamsHandling` instead
-   *
-   * ```
-   * // Preserve query params from /results?page=1 to /view?page=1
-   * this.router.navigate(['/view'], { preserveQueryParams: true });
-   * ```
+   * **DEPRECATED**: Use `queryParamsHandling: "preserve"` instead to preserve
+   * query parameters for the next navigation.
    *
    * @deprecated since v4
    */
   preserveQueryParams?: boolean;
 
   /**
-   *  config strategy to handle the query parameters for the next navigation.
+   * How to handle query parameters in the router link for the next navigation.
+   * One of:
+   * * `merge` : Merge new with current parameters.
+   * * `preserve` : Preserve current parameters.
    *
    * ```
    * // from /results?page=1 to /view?page=1&page=2
@@ -119,7 +118,7 @@ export interface NavigationExtras {
    */
   queryParamsHandling?: QueryParamsHandling|null;
   /**
-   * Preserves the fragment for the next navigation
+   * When true, preserves the URL fragment for the next navigation
    *
    * ```
    * // Preserve fragment from /results#top to /view#top
@@ -128,7 +127,7 @@ export interface NavigationExtras {
    */
   preserveFragment?: boolean;
   /**
-   * Navigates without pushing a new state into history.
+   * When true, navigates without pushing a new state into history.
    *
    * ```
    * // Navigate silently to /view
@@ -137,7 +136,7 @@ export interface NavigationExtras {
    */
   skipLocationChange?: boolean;
   /**
-   * Navigates while replacing the current state in history.
+   * When true, navigates while replacing the current state in history.
    *
    * ```
    * // Navigate to /view
@@ -146,26 +145,26 @@ export interface NavigationExtras {
    */
   replaceUrl?: boolean;
   /**
-   * State passed to any navigation. This value will be accessible through the `extras` object
-   * returned from `router.getCurrentNavigation()` while a navigation is executing. Once a
-   * navigation completes, this value will be written to `history.state` when the `location.go`
-   * or `location.replaceState` method is called before activating of this route. Note that
-   * `history.state` will not pass an object equality test because the `navigationId` will be
-   * added to the state before being written.
+   * Developer-defined state that can be passed to any navigation.
+   * Access this value through the `Navigation.extras` object
+   * returned from `router.getCurrentNavigation()` while a navigation is executing.
    *
-   * While `history.state` can accept any type of value, because the router adds the `navigationId`
-   * on each navigation, the `state` must always be an object.
+   * After a navigation completes, the router writes an object containing this
+   * value together with a `navigationId` to `history.state`.
+   * The value is written when `location.go()` or `location.replaceState()`
+   * is called before activating this route.
+   *
+   * Note that `history.state` does not pass an object equality test because
+   * the router adds the `navigationId` on each navigation.
    */
   state?: {[k: string]: any};
 }
 
 /**
- * @description
+ * Error handler that is invoked when a navigation error occurs.
  *
- * Error handler that is invoked when a navigation errors.
- *
- * If the handler returns a value, the navigation promise will be resolved with this value.
- * If the handler throws an exception, the navigation promise will be rejected with
+ * If the handler returns a value, the navigation promise is resolved with this value.
+ * If the handler throws an exception, the navigation promise is rejected with
  * the exception.
  *
  * @publicApi
@@ -186,10 +185,8 @@ export type RestoredState = {
 };
 
 /**
- * @description
- *
- * Information about any given navigation. This information can be gotten from the router at
- * any time using the `router.getCurrentNavigation()` method.
+ * Information about a navigation operation. Retrieve the most recent
+ * navigation object with the `router.getCurrentNavigation()` method.
  *
  * @publicApi
  */
@@ -199,35 +196,37 @@ export type Navigation = {
    */
   id: number;
   /**
-   * Target URL passed into the {@link Router#navigateByUrl} call before navigation. This is
+   * The target URL passed into the `Router#navigateByUrl()` call before navigation. This is
    * the value before the router has parsed or applied redirects to it.
    */
   initialUrl: string | UrlTree;
   /**
-   * The initial target URL after being parsed with {@link UrlSerializer.extract()}.
+   * The initial target URL after being parsed with `UrlSerializer.extract()`.
    */
   extractedUrl: UrlTree;
   /**
-   * Extracted URL after redirects have been applied. This URL may not be available immediately,
-   * therefore this property can be `undefined`. It is guaranteed to be set after the
-   * {@link RoutesRecognized} event fires.
+   * The extracted URL after redirects have been applied.
+   * This URL may not be available immediately, therefore this property can be `undefined`.
+   * It is guaranteed to be set after the `RoutesRecognized` event fires.
    */
   finalUrl?: UrlTree;
   /**
-   * Identifies the trigger of the navigation.
+   * Identifies how this navigation was triggered.
    *
-   * * 'imperative'--triggered by `router.navigateByUrl` or `router.navigate`.
-   * * 'popstate'--triggered by a popstate event
-   * * 'hashchange'--triggered by a hashchange event
+   * * 'imperative'--Triggered by `router.navigateByUrl` or `router.navigate`.
+   * * 'popstate'--Triggered by a popstate event.
+   * * 'hashchange'--Triggered by a hashchange event.
    */
   trigger: 'imperative' | 'popstate' | 'hashchange';
   /**
-   * The NavigationExtras used in this navigation. See {@link NavigationExtras} for more info.
+   * Options that controlled the strategy used for this navigation.
+   * See `NavigationExtras`.
    */
   extras: NavigationExtras;
   /**
-   * Previously successful Navigation object. Only a single previous Navigation is available,
-   * therefore this previous Navigation will always have a `null` value for `previousNavigation`.
+   * The previously successful `Navigation` object. Only one previous navigation
+   * is available, therefore this previous `Navigation` object has a `null` value
+   * for its own `previousNavigation`.
    */
   previousNavigation: Navigation | null;
 };
@@ -280,9 +279,10 @@ function defaultRouterHook(snapshot: RouterStateSnapshot, runExtras: {
 /**
  * @description
  *
- * Provides the navigation and url manipulation capabilities.
+ * A service that provides navigation and URL manipulation capabilities.
  *
- * See `Routes` for more details and examples.
+ * @see `Route`.
+ * @see [Routing and Navigation Guide](guide/router).
  *
  * @ngModule RouterModule
  *
@@ -291,6 +291,7 @@ function defaultRouterHook(snapshot: RouterStateSnapshot, runExtras: {
 export class Router {
   private currentUrlTree: UrlTree;
   private rawUrlTree: UrlTree;
+  private browserUrlTree: UrlTree;
   private readonly transitions: BehaviorSubject<NavigationTransition>;
   private navigations: Observable<NavigationTransition>;
   private lastSuccessfulNavigation: Navigation|null = null;
@@ -304,19 +305,24 @@ export class Router {
   private console: Console;
   private isNgZoneEnabled: boolean = false;
 
+  /**
+   * An event stream for routing events in this NgModule.
+   */
   public readonly events: Observable<Event> = new Subject<Event>();
+  /**
+   * The current state of routing in this NgModule.
+   */
   public readonly routerState: RouterState;
 
   /**
-   * Error handler that is invoked when a navigation errors.
-   *
-   * See `ErrorHandler` for more information.
+   * A handler for navigation errors in this NgModule.
    */
   errorHandler: ErrorHandler = defaultErrorHandler;
 
   /**
-   * Malformed uri error handler is invoked when `Router.parseUrl(url)` throws an
-   * error due to containing an invalid character. The most common case would be a `%` sign
+   * A handler for errors thrown by `Router.parseUrl(url)`
+   * when `url` contains an invalid character.
+   * The most common case is a `%` sign
    * that's not encoded and is not part of a percent encoded sequence.
    */
   malformedUriErrorHandler:
@@ -324,14 +330,17 @@ export class Router {
        url: string) => UrlTree = defaultMalformedUriErrorHandler;
 
   /**
-   * Indicates if at least one navigation happened.
+   * True if at least one navigation event has occurred,
+   * false otherwise.
    */
   navigated: boolean = false;
   private lastSuccessfulId: number = -1;
 
   /**
-   * Used by RouterModule. This allows us to
-   * pause the navigation either before preactivation or after it.
+   * Hooks that enable you to pause navigation,
+   * either before or after the preactivation phase.
+   * Used by `RouterModule`.
+   *
    * @internal
    */
   hooks: {beforePreactivation: RouterHook, afterPreactivation: RouterHook} = {
@@ -340,44 +349,46 @@ export class Router {
   };
 
   /**
-   * Extracts and merges URLs. Used for AngularJS to Angular migrations.
+   * A strategy for extracting and merging URLs.
+   * Used for AngularJS to Angular migrations.
    */
   urlHandlingStrategy: UrlHandlingStrategy = new DefaultUrlHandlingStrategy();
 
+  /**
+   * A strategy for re-using routes.
+   */
   routeReuseStrategy: RouteReuseStrategy = new DefaultRouteReuseStrategy();
 
   /**
-   * Define what the router should do if it receives a navigation request to the current URL.
-   * By default, the router will ignore this navigation. However, this prevents features such
-   * as a "refresh" button. Use this option to configure the behavior when navigating to the
-   * current URL. Default is 'ignore'.
+   * How to handle a navigation request to the current URL. One of:
+   * - `'ignore'` :  The router ignores the request.
+   * - `'reload'` : The router reloads the URL. Use to implement a "refresh" feature.
    */
   onSameUrlNavigation: 'reload'|'ignore' = 'ignore';
 
   /**
-   * Defines how the router merges params, data and resolved data from parent to child
-   * routes. Available options are:
+   * How to merge parameters, data, and resolved data from parent to child
+   * routes. One of:
    *
-   * - `'emptyOnly'`, the default, only inherits parent params for path-less or component-less
-   *   routes.
-   * - `'always'`, enables unconditional inheritance of parent params.
+   * - `'emptyOnly'` : Inherit parent parameters, data, and resolved data
+   * for path-less or component-less routes.
+   * - `'always'` : Inherit parent parameters, data, and resolved data
+   * for all child routes.
    */
   paramsInheritanceStrategy: 'emptyOnly'|'always' = 'emptyOnly';
 
   /**
-   * Defines when the router updates the browser URL. The default behavior is to update after
-   * successful navigation. However, some applications may prefer a mode where the URL gets
-   * updated at the beginning of navigation. The most common use case would be updating the
-   * URL early so if navigation fails, you can show an error message with the URL that failed.
-   * Available options are:
-   *
-   * - `'deferred'`, the default, updates the browser URL after navigation has finished.
-   * - `'eager'`, updates browser URL at the beginning of navigation.
+   * Determines when the router updates the browser URL.
+   * By default (`"deferred"`), udates the browser URL after navigation has finished.
+   * Set to `'eager'` to update the browser URL at the beginning of navigation.
+   * You can choose to update early so that, if navigation fails,
+   * you can show an error message with the URL that failed.
    */
   urlUpdateStrategy: 'deferred'|'eager' = 'deferred';
 
   /**
-   * See {@link RouterModule} for more information.
+   * Enables a bug fix that corrects relative link resolution in components with empty paths.
+   * @see `RouterModule`
    */
   relativeLinkResolution: 'legacy'|'corrected' = 'legacy';
 
@@ -400,6 +411,7 @@ export class Router {
     this.resetConfig(config);
     this.currentUrlTree = createEmptyUrlTree();
     this.rawUrlTree = this.currentUrlTree;
+    this.browserUrlTree = this.currentUrlTree;
 
     this.configLoader = new RouterConfigLoader(loader, compiler, onLoadStart, onLoadEnd);
     this.routerState = createEmptyState(this.currentUrlTree, this.rootComponentType);
@@ -440,28 +452,27 @@ export class Router {
               ...t, extractedUrl: this.urlHandlingStrategy.extract(t.rawUrl)
             } as NavigationTransition)),
 
-        // Store the Navigation object
-        tap(t => {
-          this.currentNavigation = {
-            id: t.id,
-            initialUrl: t.currentRawUrl,
-            extractedUrl: t.extractedUrl,
-            trigger: t.source,
-            extras: t.extras,
-            previousNavigation: this.lastSuccessfulNavigation ?
-                {...this.lastSuccessfulNavigation, previousNavigation: null} :
-                null
-          };
-        }),
-
         // Using switchMap so we cancel executing navigations when a new one comes in
         switchMap(t => {
           let completed = false;
           let errored = false;
           return of (t).pipe(
+              // Store the Navigation object
+              tap(t => {
+                this.currentNavigation = {
+                  id: t.id,
+                  initialUrl: t.currentRawUrl,
+                  extractedUrl: t.extractedUrl,
+                  trigger: t.source,
+                  extras: t.extras,
+                  previousNavigation: this.lastSuccessfulNavigation ?
+                      {...this.lastSuccessfulNavigation, previousNavigation: null} :
+                      null
+                };
+              }),
               switchMap(t => {
                 const urlTransition =
-                    !this.navigated || t.extractedUrl.toString() !== this.currentUrlTree.toString();
+                    !this.navigated || t.extractedUrl.toString() !== this.browserUrlTree.toString();
                 const processCurrentUrl =
                     (this.onSameUrlNavigation === 'reload' ? true : urlTransition) &&
                     this.urlHandlingStrategy.shouldProcessUrl(t.rawUrl);
@@ -502,8 +513,15 @@ export class Router {
                           this.paramsInheritanceStrategy, this.relativeLinkResolution),
 
                       // Update URL if in `eager` update mode
-                      tap(t => this.urlUpdateStrategy === 'eager' && !t.extras.skipLocationChange &&
-                              this.setBrowserUrl(t.urlAfterRedirects, !!t.extras.replaceUrl, t.id)),
+                      tap(t => {
+                        if (this.urlUpdateStrategy === 'eager') {
+                          if (!t.extras.skipLocationChange) {
+                            this.setBrowserUrl(
+                                t.urlAfterRedirects, !!t.extras.replaceUrl, t.id, t.extras.state);
+                          }
+                          this.browserUrlTree = t.urlAfterRedirects;
+                        }
+                      }),
 
                       // Fire RoutesRecognized
                       tap(t => {
@@ -511,7 +529,7 @@ export class Router {
                             t.id, this.serializeUrl(t.extractedUrl),
                             this.serializeUrl(t.urlAfterRedirects), t.targetSnapshot !);
                         eventsSubject.next(routesRecognized);
-                      }), );
+                      }));
                 } else {
                   const processPreviousUrl = urlTransition && this.rawUrlTree &&
                       this.urlHandlingStrategy.shouldProcessUrl(this.rawUrlTree);
@@ -538,6 +556,7 @@ export class Router {
                      * way the next navigation will be coming from the current URL in the browser.
                      */
                     this.rawUrlTree = t.rawUrl;
+                    this.browserUrlTree = t.urlAfterRedirects;
                     t.resolve(null);
                     return EMPTY;
                   }
@@ -623,7 +642,7 @@ export class Router {
                             t.id, this.serializeUrl(t.extractedUrl),
                             this.serializeUrl(t.urlAfterRedirects), t.targetSnapshot !);
                         this.triggerEvent(resolveEnd);
-                      }), );
+                      }));
                 }
                 return undefined;
               }),
@@ -663,8 +682,12 @@ export class Router {
 
                 (this as{routerState: RouterState}).routerState = t.targetRouterState !;
 
-                if (this.urlUpdateStrategy === 'deferred' && !t.extras.skipLocationChange) {
-                  this.setBrowserUrl(this.rawUrlTree, !!t.extras.replaceUrl, t.id, t.extras.state);
+                if (this.urlUpdateStrategy === 'deferred') {
+                  if (!t.extras.skipLocationChange) {
+                    this.setBrowserUrl(
+                        this.rawUrlTree, !!t.extras.replaceUrl, t.id, t.extras.state);
+                  }
+                  this.browserUrlTree = t.urlAfterRedirects;
                 }
               }),
 
@@ -703,9 +726,14 @@ export class Router {
                 /* This error type is issued during Redirect, and is handled as a cancellation
                  * rather than an error. */
                 if (isNavigationCancelingError(e)) {
-                  this.navigated = true;
                   const redirecting = isUrlTree(e.url);
                   if (!redirecting) {
+                    // Set property only if we're not redirecting. If we landed on a page and
+                    // redirect to `/` route, the new navigation is going to see the `/` isn't
+                    // a change from the default currentUrlTree and won't navigate. This is
+                    // only applicable with initial navigation, so setting `navigated` only when
+                    // not redirecting resolves this scenario.
+                    this.navigated = true;
                     this.resetStateAndUrl(t.currentRouterState, t.currentUrlTree, t.rawUrl);
                   }
                   const navCancel =
@@ -730,7 +758,7 @@ export class Router {
                   }
                 }
                 return EMPTY;
-              }), );
+              }));
           // TODO(jasonaden): remove cast once g3 is on updated TypeScript
         })) as any as Observable<NavigationTransition>;
   }
@@ -746,7 +774,14 @@ export class Router {
     this.routerState.root.component = this.rootComponentType;
   }
 
-  private getTransition(): NavigationTransition { return this.transitions.value; }
+  private getTransition(): NavigationTransition {
+    const transition = this.transitions.value;
+    // This value needs to be set. Other values such as extractedUrl are set on initial navigation
+    // but the urlAfterRedirects may not get set if we aren't processing the new URL *and* not
+    // processing the previous URL.
+    transition.urlAfterRedirects = this.browserUrlTree;
+    return transition;
+  }
 
   private setTransition(t: Partial<NavigationTransition>): void {
     this.transitions.next({...this.getTransition(), ...t});
@@ -782,7 +817,7 @@ export class Router {
     }
   }
 
-  /** The current url */
+  /** The current URL. */
   get url(): string { return this.serializeUrl(this.currentUrlTree); }
 
   /** The current Navigation object if one exists */
@@ -794,9 +829,9 @@ export class Router {
   /**
    * Resets the configuration used for navigation and generating links.
    *
-   * @usageNotes
+   * @param config The route array for the new configuration.
    *
-   * ### Example
+   * @usageNotes
    *
    * ```
    * router.resetConfig([
@@ -817,7 +852,7 @@ export class Router {
   /** @docsNotRequired */
   ngOnDestroy(): void { this.dispose(); }
 
-  /** Disposes of the router */
+  /** Disposes of the router. */
   dispose(): void {
     if (this.locationSubscription) {
       this.locationSubscription.unsubscribe();
@@ -826,14 +861,16 @@ export class Router {
   }
 
   /**
-   * Applies an array of commands to the current url tree and creates a new url tree.
+   * Applies an array of commands to the current URL tree and creates a new URL tree.
    *
-   * When given an activate route, applies the given commands starting from the route.
-   * When not given a route, applies the given command starting from the root.
+   * When given an activated route, applies the given commands starting from the route.
+   * Otherwise, applies the given command starting from the root.
+   *
+   * @param commands An array of commands to apply.
+   * @param navigationExtras Options that control the navigation strategy.
+   * @returns The new URL tree.
    *
    * @usageNotes
-   *
-   * ### Example
    *
    * ```
    * // create /team/33/user/11
@@ -845,9 +882,8 @@ export class Router {
    * // you can collapse static segments like this (this works only with the first passed-in value):
    * router.createUrlTree(['/team/33/user', userId]);
    *
-   * // If the first segment can contain slashes, and you do not want the router to split it, you
-   * // can do the following:
-   *
+   * // If the first segment can contain slashes, and you do not want the router to split it,
+   * // you can do the following:
    * router.createUrlTree([{segmentPath: '/one/two'}]);
    *
    * // create /team/33/(user/11//right:chat)
@@ -898,16 +934,17 @@ export class Router {
   }
 
   /**
-   * Navigate based on the provided url. This navigation is always absolute.
+   * Navigate based on the provided URL, which must be absolute.
    *
-   * Returns a promise that:
-   * - resolves to 'true' when navigation succeeds,
-   * - resolves to 'false' when navigation fails,
-   * - is rejected when an error happens.
+   * @param url An absolute URL. The function does not apply any delta to the current URL.
+   * @param extras An object containing properties that modify the navigation strategy.
+   * The function ignores any properties in the `NavigationExtras` that would change the
+   * provided URL.
+   *
+   * @returns A Promise that resolves to 'true' when navigation succeeds,
+   * to 'false' when navigation fails, or is rejected on error.
    *
    * @usageNotes
-   *
-   * ### Example
    *
    * ```
    * router.navigateByUrl("/team/33/user/11");
@@ -916,10 +953,6 @@ export class Router {
    * router.navigateByUrl("/team/33/user/11", { skipLocationChange: true });
    * ```
    *
-   * Since `navigateByUrl()` takes an absolute URL as the first parameter,
-   * it will not apply any delta to the current URL and ignores any properties
-   * in the second parameter (the `NavigationExtras`) that would change the
-   * provided URL.
    */
   navigateByUrl(url: string|UrlTree, extras: NavigationExtras = {skipLocationChange: false}):
       Promise<boolean> {
@@ -944,8 +977,6 @@ export class Router {
    * - is rejected when an error happens.
    *
    * @usageNotes
-   *
-   * ### Example
    *
    * ```
    * router.navigate(['team', 33, 'user', 11], {relativeTo: route});

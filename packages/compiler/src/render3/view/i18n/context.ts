@@ -6,14 +6,16 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
+import {AST} from '../../../expression_parser/ast';
 import * as i18n from '../../../i18n/i18n_ast';
 import * as o from '../../../output/output_ast';
 
-import {assembleBoundTextPlaceholders, findIndex, getSeqNumberGenerator, updatePlaceholderMap, wrapI18nPlaceholder} from './util';
+import {assembleBoundTextPlaceholders, getSeqNumberGenerator, updatePlaceholderMap, wrapI18nPlaceholder} from './util';
 
 enum TagType {
   ELEMENT,
-  TEMPLATE
+  TEMPLATE,
+  PROJECTION
 }
 
 /**
@@ -40,8 +42,9 @@ function setupRegistry() {
  */
 export class I18nContext {
   public readonly id: number;
-  public bindings = new Set<o.Expression>();
+  public bindings = new Set<AST>();
   public placeholders = new Map<string, any[]>();
+  public isEmitted: boolean = false;
 
   private _registry !: any;
   private _unresolvedCtxCount: number = 0;
@@ -74,7 +77,7 @@ export class I18nContext {
   }
 
   // public API to accumulate i18n-related content
-  appendBinding(binding: o.Expression) { this.bindings.add(binding); }
+  appendBinding(binding: AST) { this.bindings.add(binding); }
   appendIcu(name: string, ref: o.Expression) {
     updatePlaceholderMap(this._registry.icus, name, ref);
   }
@@ -91,6 +94,12 @@ export class I18nContext {
   }
   appendElement(node: i18n.AST, index: number, closed?: boolean) {
     this.appendTag(TagType.ELEMENT, node as i18n.TagPlaceholder, index, closed);
+  }
+  appendProjection(node: i18n.AST, index: number) {
+    // add open and close tags at the same time,
+    // since we process projected content separately
+    this.appendTag(TagType.PROJECTION, node as i18n.TagPlaceholder, index, false);
+    this.appendTag(TagType.PROJECTION, node as i18n.TagPlaceholder, index, true);
   }
 
   /**
@@ -133,7 +142,7 @@ export class I18nContext {
         return;
       }
       // try to find matching template...
-      const tmplIdx = findIndex(phs, findTemplateFn(context.id, context.templateIndex));
+      const tmplIdx = phs.findIndex(findTemplateFn(context.id, context.templateIndex));
       if (tmplIdx >= 0) {
         // ... if found - replace it with nested template content
         const isCloseTag = key.startsWith('CLOSE');
@@ -179,6 +188,7 @@ function findTemplateFn(ctx: number, templateIndex: number | null) {
 function serializePlaceholderValue(value: any): string {
   const element = (data: any, closed?: boolean) => wrapTag('#', data, closed);
   const template = (data: any, closed?: boolean) => wrapTag('*', data, closed);
+  const projection = (data: any, closed?: boolean) => wrapTag('!', data, closed);
 
   switch (value.type) {
     case TagType.ELEMENT:
@@ -195,6 +205,9 @@ function serializePlaceholderValue(value: any): string {
 
     case TagType.TEMPLATE:
       return template(value, value.closed);
+
+    case TagType.PROJECTION:
+      return projection(value, value.closed);
 
     default:
       return value;

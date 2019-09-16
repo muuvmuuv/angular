@@ -112,6 +112,12 @@ export interface CompilerOptions extends ts.CompilerOptions {
   // This will be true be default in Angular 6.
   fullTemplateTypeCheck?: boolean;
 
+  // Whether to use the CompilerHost's fileNameToModuleName utility (if available) to generate
+  // import module specifiers. This is false by default, and exists to support running ngtsc
+  // within Google. This option is internal and is used by the ng_module.bzl rule to switch
+  // behavior between Bazel and Blaze.
+  _useHostForImportGeneration?: boolean;
+
   // Insert JSDoc type annotations needed by Closure Compiler
   annotateForClosureCompiler?: boolean;
 
@@ -180,25 +186,51 @@ export interface CompilerOptions extends ts.CompilerOptions {
 
   /**
    * Tells the compiler to generate definitions using the Render3 style code generation.
-   * This option defaults to `false`.
-   *
-   * Not all features are supported with this option enabled. It is only supported
-   * for experimentation and testing of Render3 style code generation.
+   * This option defaults to `true`.
    *
    * Acceptable values are as follows:
    *
    * `false` - run ngc normally
-   * `true` - run ngc with its usual global analysis, but compile decorators to Ivy fields instead
-   *  of running the View Engine compilers
-   * `ngtsc` - run the ngtsc compiler instead of the normal ngc compiler
-   * `tsc` - behave like plain tsc as much as possible (used for testing JIT code)
+   * `true` - run the ngtsc compiler instead of the normal ngc compiler
+   * `ngtsc` - alias for `true`
    *
    * @publicApi
    */
-  enableIvy?: boolean|'ngtsc'|'tsc';
+  enableIvy?: boolean|'ngtsc';
 
   /** @internal */
   collectAllErrors?: boolean;
+
+  /** An option to enable ngtsc's internal performance tracing.
+   *
+   * This should be a path to a JSON file where trace information will be written. An optional 'ts:'
+   * prefix will cause the trace to be written via the TS host instead of directly to the filesystem
+   * (not all hosts support this mode of operation).
+   *
+   * This is currently not exposed to users as the trace format is still unstable.
+   *
+   * @internal */
+  tracePerformance?: string;
+
+  /**
+   * Whether NGC should generate re-exports for external symbols which are referenced
+   * in Angular metadata (e.g. @Component, @Inject, @ViewChild). This can be enabled in
+   * order to avoid dynamically generated module dependencies which can break strict
+   * dependency enforcements. This is not enabled by default.
+   * Read more about this here: https://github.com/angular/angular/issues/25644.
+   */
+  createExternalSymbolFactoryReexports?: boolean;
+
+  /**
+   * Turn on template type-checking in the Ivy compiler.
+   *
+   * This is an internal flag being used to roll out template type-checking in ngtsc. Turning it on
+   * by default before it's ready might break other users attempting to test the new compiler's
+   * behavior.
+   *
+   * @internal
+   */
+  ivyTemplateTypeCheck?: boolean;
 }
 
 export interface CompilerHost extends ts.CompilerHost {
@@ -245,6 +277,12 @@ export interface CompilerHost extends ts.CompilerHost {
    * rather than by path. See http://requirejs.org/docs/whyamd.html#namedmodules
    */
   amdModuleName?(sf: ts.SourceFile): string|undefined;
+
+  /**
+   * Get the absolute paths to the changed files that triggered the current compilation
+   * or `undefined` if this is not an incremental build.
+   */
+  getModifiedResourceFiles?(): Set<string>|undefined;
 }
 
 export enum EmitFlags {
@@ -307,7 +345,8 @@ export interface Program {
   /**
    * Retrieve options diagnostics for the Angular options used to create the program.
    */
-  getNgOptionDiagnostics(cancellationToken?: ts.CancellationToken): ReadonlyArray<Diagnostic>;
+  getNgOptionDiagnostics(cancellationToken?: ts.CancellationToken):
+      ReadonlyArray<ts.Diagnostic|Diagnostic>;
 
   /**
    * Retrieve the syntax diagnostics from TypeScript. This is faster than calling

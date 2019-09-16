@@ -32,6 +32,8 @@ class R3AstHumanizer implements t.Visitor<void> {
     this.visitAll([
       template.attributes,
       template.inputs,
+      template.outputs,
+      template.templateAttrs,
       template.references,
       template.variables,
       template.children,
@@ -93,7 +95,17 @@ function expectFromR3Nodes(nodes: t.Node[]) {
   return expect(humanizer.result);
 }
 
+function expectSpanFromHtml(html: string) {
+  const {nodes} = parse(html);
+  return expect(nodes[0] !.sourceSpan.toString());
+}
+
 describe('R3 template transform', () => {
+  describe('ParseSpan on nodes toString', () => {
+    it('should create valid text span on Element with adjacent start and end tags',
+       () => { expectSpanFromHtml('<div></div>').toBe('<div></div>'); });
+  });
+
   describe('Nodes without binding', () => {
     it('should parse text nodes', () => {
       expectFromHtml('a').toEqual([
@@ -176,10 +188,10 @@ describe('R3 template transform', () => {
       ]);
     });
 
-    it('should normalize property names via the element schema', () => {
+    it('should not normalize property names via the element schema', () => {
       expectFromHtml('<div [mappedAttr]="v"></div>').toEqual([
         ['Element', 'div'],
-        ['BoundAttribute', BindingType.Property, 'mappedProp', 'v'],
+        ['BoundAttribute', BindingType.Property, 'mappedAttr', 'v'],
       ]);
     });
 

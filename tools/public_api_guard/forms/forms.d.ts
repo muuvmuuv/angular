@@ -30,8 +30,9 @@ export declare abstract class AbstractControl {
         emitEvent?: boolean;
     }): void;
     get(path: Array<string | number> | string): AbstractControl | null;
-    getError(errorCode: string, path?: string[]): any;
-    hasError(errorCode: string, path?: string[]): boolean;
+    getError(errorCode: string, path?: Array<string | number> | string): any;
+    hasError(errorCode: string, path?: Array<string | number> | string): boolean;
+    markAllAsTouched(): void;
     markAsDirty(opts?: {
         onlySelf?: boolean;
     }): void;
@@ -80,8 +81,8 @@ export declare abstract class AbstractControlDirective {
     readonly valid: boolean | null;
     readonly value: any;
     readonly valueChanges: Observable<any> | null;
-    getError(errorCode: string, path?: string[]): any;
-    hasError(errorCode: string, path?: string[]): boolean;
+    getError(errorCode: string, path?: Array<string | number> | string): any;
+    hasError(errorCode: string, path?: Array<string | number> | string): boolean;
     reset(value?: any): void;
 }
 
@@ -169,6 +170,7 @@ export declare class FormArray extends AbstractControl {
     readonly length: number;
     constructor(controls: AbstractControl[], validatorOrOpts?: ValidatorFn | ValidatorFn[] | AbstractControlOptions | null, asyncValidator?: AsyncValidatorFn | AsyncValidatorFn[] | null);
     at(index: number): AbstractControl;
+    clear(): void;
     getRawValue(): any[];
     insert(index: number, control: AbstractControl): void;
     patchValue(value: any[], options?: {
@@ -239,7 +241,7 @@ export declare class FormControlDirective extends NgControl implements OnChanges
     isDisabled: boolean;
     /** @deprecated */ model: any;
     readonly path: string[];
-    /** @deprecated */ update: EventEmitter<{}>;
+    /** @deprecated */ update: EventEmitter<any>;
     readonly validator: ValidatorFn | null;
     viewModel: any;
     constructor(validators: Array<Validator | ValidatorFn>, asyncValidators: Array<AsyncValidator | AsyncValidatorFn>, valueAccessors: ControlValueAccessor[], _ngModelWarningConfig: string | null);
@@ -253,9 +255,9 @@ export declare class FormControlName extends NgControl implements OnChanges, OnD
     readonly formDirective: any;
     isDisabled: boolean;
     /** @deprecated */ model: any;
-    name: string;
+    name: string | number | null;
     readonly path: string[];
-    /** @deprecated */ update: EventEmitter<{}>;
+    /** @deprecated */ update: EventEmitter<any>;
     readonly validator: ValidatorFn | null;
     constructor(parent: ControlContainer, validators: Array<Validator | ValidatorFn>, asyncValidators: Array<AsyncValidator | AsyncValidatorFn>, valueAccessors: ControlValueAccessor[], _ngModelWarningConfig: string | null);
     ngOnChanges(changes: SimpleChanges): void;
@@ -299,7 +301,7 @@ export declare class FormGroupDirective extends ControlContainer implements Form
     directives: FormControlName[];
     form: FormGroup;
     readonly formDirective: Form;
-    ngSubmit: EventEmitter<{}>;
+    ngSubmit: EventEmitter<any>;
     readonly path: string[];
     readonly submitted: boolean;
     constructor(_validators: any[], _asyncValidators: any[]);
@@ -351,7 +353,7 @@ export declare const NG_VALUE_ACCESSOR: InjectionToken<ControlValueAccessor>;
 
 export declare abstract class NgControl extends AbstractControlDirective {
     readonly asyncValidator: AsyncValidatorFn | null;
-    name: string | null;
+    name: string | number | null;
     readonly validator: ValidatorFn | null;
     valueAccessor: ControlValueAccessor | null;
     abstract viewToModelUpdate(newValue: any): void;
@@ -372,7 +374,7 @@ export declare class NgForm extends ControlContainer implements Form, AfterViewI
     };
     form: FormGroup;
     readonly formDirective: Form;
-    ngSubmit: EventEmitter<{}>;
+    ngSubmit: EventEmitter<any>;
     options: {
         updateOn?: FormHooks;
     };
@@ -413,7 +415,7 @@ export declare class NgModel extends NgControl implements OnChanges, OnDestroy {
         updateOn?: FormHooks;
     };
     readonly path: string[];
-    update: EventEmitter<{}>;
+    update: EventEmitter<any>;
     readonly validator: ValidatorFn | null;
     viewModel: any;
     constructor(parent: ControlContainer, validators: Array<Validator | ValidatorFn>, asyncValidators: Array<AsyncValidator | AsyncValidatorFn>, valueAccessors: ControlValueAccessor[]);
@@ -435,6 +437,16 @@ export declare class NgSelectOption implements OnDestroy {
     ngOnDestroy(): void;
 }
 
+export declare class NumberValueAccessor implements ControlValueAccessor {
+    onChange: (_: any) => void;
+    onTouched: () => void;
+    constructor(_renderer: Renderer2, _elementRef: ElementRef);
+    registerOnChange(fn: (_: number | null) => void): void;
+    registerOnTouched(fn: () => void): void;
+    setDisabledState(isDisabled: boolean): void;
+    writeValue(value: number): void;
+}
+
 export declare class PatternValidator implements Validator, OnChanges {
     pattern: string | RegExp;
     ngOnChanges(changes: SimpleChanges): void;
@@ -454,6 +466,16 @@ export declare class RadioControlValueAccessor implements ControlValueAccessor, 
     ngOnInit(): void;
     registerOnChange(fn: (_: any) => {}): void;
     registerOnTouched(fn: () => {}): void;
+    setDisabledState(isDisabled: boolean): void;
+    writeValue(value: any): void;
+}
+
+export declare class RangeValueAccessor implements ControlValueAccessor {
+    onChange: (_: any) => void;
+    onTouched: () => void;
+    constructor(_renderer: Renderer2, _elementRef: ElementRef);
+    registerOnChange(fn: (_: number | null) => void): void;
+    registerOnTouched(fn: () => void): void;
     setDisabledState(isDisabled: boolean): void;
     writeValue(value: any): void;
 }

@@ -85,13 +85,13 @@ export class AppComponent implements OnInit {
   searchResults: Observable<SearchResults>;
   @ViewChildren('searchBox, searchResultsView', { read: ElementRef })
   searchElements: QueryList<ElementRef>;
-  @ViewChild(SearchBoxComponent)
+  @ViewChild(SearchBoxComponent, { static: true })
   searchBox: SearchBoxComponent;
 
-  @ViewChild(MatSidenav)
+  @ViewChild(MatSidenav, { static: true })
   sidenav: MatSidenav;
 
-  @ViewChild(NotificationComponent)
+  @ViewChild(NotificationComponent, { static: true })
   notification: NotificationComponent;
   notificationAnimating = false;
 
@@ -110,7 +110,7 @@ export class AppComponent implements OnInit {
     // Do not initialize the search on browsers that lack web worker support
     if ('Worker' in window) {
       // Delay initialization by up to 2 seconds
-      this.searchService.initWorker('app/search/search-worker.js', 2000);
+      this.searchService.initWorker(2000);
     }
 
     this.onResize(window.innerWidth);
@@ -120,14 +120,9 @@ export class AppComponent implements OnInit {
     this.documentService.currentDocument.subscribe(doc => this.currentDocument = doc);
 
     this.locationService.currentPath.subscribe(path => {
-      // Redirect to docs if we are in archive mode and are not hitting a docs page
-      // (i.e. we have arrived at a marketing page)
-      if (this.deployment.mode === 'archive' && !/^(docs$|api|guide|tutorial)/.test(path)) {
-        this.locationService.replace('docs');
-      }
       if (path === this.currentPath) {
         // scroll only if on same page (most likely a change to the hash)
-        this.autoScroll();
+        this.scrollService.scroll();
       } else {
         // don't scroll; leave that to `onDocRendered`
         this.currentPath = path;
@@ -138,7 +133,15 @@ export class AppComponent implements OnInit {
       }
     });
 
-    this.navigationService.currentNodes.subscribe(currentNodes => this.currentNodes = currentNodes);
+    this.navigationService.currentNodes.subscribe(currentNodes => {
+      this.currentNodes = currentNodes;
+
+      // Redirect to docs if we are in archive mode and are not hitting a docs page
+      // (i.e. we have arrived at a marketing page)
+      if (this.deployment.mode === 'archive' && !currentNodes[sideNavView]) {
+        this.locationService.replace('docs');
+      }
+    });
 
     // Compute the version picker list from the current version and the versions in the navigation map
     combineLatest(
@@ -187,11 +190,6 @@ export class AppComponent implements OnInit {
       .subscribe(() => this.updateShell());
   }
 
-  // Scroll to the anchor in the hash fragment or top of doc.
-  autoScroll() {
-    this.scrollService.scroll();
-  }
-
   onDocReady() {
     // About to transition to new view.
     this.isTransitioning = true;
@@ -204,9 +202,7 @@ export class AppComponent implements OnInit {
   }
 
   onDocRemoved() {
-    // The previous document has been removed.
-    // Scroll to top to restore a clean visual state for the new document.
-    this.scrollService.scrollToTop();
+    this.scrollService.removeStoredScrollPosition();
   }
 
   onDocInserted() {
@@ -216,9 +212,8 @@ export class AppComponent implements OnInit {
     // (e.g. sidenav, host classes) needs to happen asynchronously.
     setTimeout(() => this.updateShell());
 
-    // Scroll 500ms after the new document has been inserted into the doc-viewer.
-    // The delay is to allow time for async layout to complete.
-    setTimeout(() => this.autoScroll(), 500);
+    // Scroll the good position depending on the context
+    this.scrollService.scrollAfterRender(500);
   }
 
   onDocRendered() {
@@ -242,7 +237,7 @@ export class AppComponent implements OnInit {
 
   @HostListener('window:resize', ['$event.target.innerWidth'])
   onResize(width: number) {
-    this.isSideBySide = width > this.sideBySideWidth;
+    this.isSideBySide = width >= this.sideBySideWidth;
     this.showFloatingToc.next(width > this.showFloatingTocWidth);
 
     if (this.isSideBySide && !this.isSideNavDoc) {
@@ -256,7 +251,6 @@ export class AppComponent implements OnInit {
 
   @HostListener('click', ['$event.target', '$event.button', '$event.ctrlKey', '$event.metaKey', '$event.altKey'])
   onClick(eventTarget: HTMLElement, button: number, ctrlKey: boolean, metaKey: boolean, altKey: boolean): boolean {
-
     // Hide the search results if we clicked outside both the "search box" and the "search results"
     if (!this.searchElements.some(element => element.nativeElement.contains(eventTarget))) {
       this.hideSearchResults();
@@ -293,10 +287,10 @@ export class AppComponent implements OnInit {
 
   notificationDismissed() {
     this.notificationAnimating = true;
-      // this should be kept in sync with the animation durations in:
-      // - aio/src/styles/2-modules/_notification.scss
-      // - aio/src/app/layout/notification/notification.component.ts
-      setTimeout(() => this.notificationAnimating = false, 250);
+    // this should be kept in sync with the animation durations in:
+    // - aio/src/styles/2-modules/_notification.scss
+    // - aio/src/app/layout/notification/notification.component.ts
+    setTimeout(() => this.notificationAnimating = false, 250);
     this.updateHostClasses();
   }
 

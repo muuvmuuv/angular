@@ -17,12 +17,16 @@ import {replaceTsWithNgInErrors} from './ngtsc/diagnostics';
 import * as api from './transformers/api';
 import {GENERATED_FILES} from './transformers/util';
 
-import {exitCodeFromResult, performCompilation, readConfiguration, formatDiagnostics, Diagnostics, ParsedConfiguration, PerformCompilationResult, filterErrorsAndWarnings} from './perform_compile';
+import {exitCodeFromResult, performCompilation, readConfiguration, formatDiagnostics, Diagnostics, ParsedConfiguration, filterErrorsAndWarnings} from './perform_compile';
 import {performWatchCompilation, createPerformWatchHost} from './perform_watch';
+import {NodeJSFileSystem, setFileSystem} from './ngtsc/file_system';
 
 export function main(
     args: string[], consoleError: (s: string) => void = console.error,
-    config?: NgcParsedConfiguration): number {
+    config?: NgcParsedConfiguration, customTransformers?: api.CustomTransformers, programReuse?: {
+      program: api.Program | undefined,
+    },
+    modifiedResourceFiles?: Set<string>| null): number {
   let {project, rootNames, options, errors: configErrors, watch, emitFlags} =
       config || readNgcCommandLineAndConfiguration(args);
   if (configErrors.length) {
@@ -32,8 +36,22 @@ export function main(
     const result = watchMode(project, options, consoleError);
     return reportErrorsAndExit(result.firstCompileResult, options, consoleError);
   }
-  const {diagnostics: compileDiags} = performCompilation(
-      {rootNames, options, emitFlags, emitCallback: createEmitCallback(options)});
+
+  let oldProgram: api.Program|undefined;
+  if (programReuse !== undefined) {
+    oldProgram = programReuse.program;
+  }
+
+  const {diagnostics: compileDiags, program} = performCompilation({
+    rootNames,
+    options,
+    emitFlags,
+    oldProgram,
+    emitCallback: createEmitCallback(options), customTransformers, modifiedResourceFiles
+  });
+  if (programReuse !== undefined) {
+    programReuse.program = program;
+  }
   return reportErrorsAndExit(compileDiags, options, consoleError);
 }
 
@@ -50,8 +68,8 @@ export function mainDiagnosticsForTest(
 }
 
 function createEmitCallback(options: api.CompilerOptions): api.TsEmitCallback|undefined {
-  const transformDecorators = options.enableIvy !== 'ngtsc' && options.enableIvy !== 'tsc' &&
-      options.annotationsAs !== 'decorators';
+  const transformDecorators =
+      (options.enableIvy === false && options.annotationsAs !== 'decorators');
   const transformTypesToClosure = options.annotateForClosureCompiler;
   if (!transformDecorators && !transformTypesToClosure) {
     return undefined;
@@ -89,8 +107,8 @@ function createEmitCallback(options: api.CompilerOptions): api.TsEmitCallback|un
            }) =>
                // tslint:disable-next-line:no-require-imports only depend on tsickle if requested
         require('tsickle').emitWithTsickle(
-            program, {...tsickleHost, options, host}, host, options, targetSourceFile, writeFile,
-            cancellationToken, emitOnlyDtsFiles, {
+            program, {...tsickleHost, options, host, moduleResolutionHost: host}, host, options,
+            targetSourceFile, writeFile, cancellationToken, emitOnlyDtsFiles, {
               beforeTs: customTransformers.before,
               afterTs: customTransformers.after,
             });
@@ -111,7 +129,7 @@ function createEmitCallback(options: api.CompilerOptions): api.TsEmitCallback|un
 
 export interface NgcParsedConfiguration extends ParsedConfiguration { watch?: boolean; }
 
-function readNgcCommandLineAndConfiguration(args: string[]): NgcParsedConfiguration {
+export function readNgcCommandLineAndConfiguration(args: string[]): NgcParsedConfiguration {
   const options: api.CompilerOptions = {};
   const parsedArgs = require('minimist')(args);
   if (parsedArgs.i18nFile) options.i18nInFile = parsedArgs.i18nFile;
@@ -162,18 +180,33 @@ export function readCommandLineAndConfiguration(
   };
 }
 
+function getFormatDiagnosticsHost(options?: api.CompilerOptions): ts.FormatDiagnosticsHost {
+  const basePath = options ? options.basePath : undefined;
+  return {
+    getCurrentDirectory: () => basePath || ts.sys.getCurrentDirectory(),
+    // We need to normalize the path separators here because by default, TypeScript
+    // compiler hosts use posix canonical paths. In order to print consistent diagnostics,
+    // we also normalize the paths.
+    getCanonicalFileName: fileName => fileName.replace(/\\/g, '/'),
+    getNewLine: () => {
+      // Manually determine the proper new line string based on the passed compiler
+      // options. There is no public TypeScript function that returns the corresponding
+      // new line string. see: https://github.com/Microsoft/TypeScript/issues/29581
+      if (options && options.newLine !== undefined) {
+        return options.newLine === ts.NewLineKind.LineFeed ? '\n' : '\r\n';
+      }
+      return ts.sys.newLine;
+    },
+  };
+}
+
 function reportErrorsAndExit(
     allDiagnostics: Diagnostics, options?: api.CompilerOptions,
     consoleError: (s: string) => void = console.error): number {
   const errorsAndWarnings = filterErrorsAndWarnings(allDiagnostics);
   if (errorsAndWarnings.length) {
-    let currentDir = options ? options.basePath : undefined;
-    const formatHost: ts.FormatDiagnosticsHost = {
-      getCurrentDirectory: () => currentDir || ts.sys.getCurrentDirectory(),
-      getCanonicalFileName: fileName => fileName,
-      getNewLine: () => ts.sys.newLine
-    };
-    if (options && (options.enableIvy === true || options.enableIvy === 'ngtsc')) {
+    const formatHost = getFormatDiagnosticsHost(options);
+    if (options && options.enableIvy !== false) {
       const ngDiagnostics = errorsAndWarnings.filter(api.isNgDiagnostic);
       const tsDiagnostics = errorsAndWarnings.filter(api.isTsDiagnostic);
       consoleError(replaceTsWithNgInErrors(
@@ -189,12 +222,14 @@ function reportErrorsAndExit(
 export function watchMode(
     project: string, options: api.CompilerOptions, consoleError: (s: string) => void) {
   return performWatchCompilation(createPerformWatchHost(project, diagnostics => {
-    consoleError(formatDiagnostics(diagnostics));
+    consoleError(formatDiagnostics(diagnostics, getFormatDiagnosticsHost(options)));
   }, options, options => createEmitCallback(options)));
 }
 
 // CLI entry point
 if (require.main === module) {
   const args = process.argv.slice(2);
+  // We are running the real compiler so run against the real file-system
+  setFileSystem(new NodeJSFileSystem());
   process.exitCode = main(args);
 }

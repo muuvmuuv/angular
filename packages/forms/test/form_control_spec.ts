@@ -9,15 +9,15 @@
 import {EventEmitter} from '@angular/core';
 import {fakeAsync, tick} from '@angular/core/testing';
 import {AsyncTestCompleter, beforeEach, describe, inject, it} from '@angular/core/testing/src/testing_internal';
-import {FormControl, FormGroup, Validators} from '@angular/forms';
+import {AbstractControl, AsyncValidatorFn, FormControl, FormGroup, ValidationErrors, Validators} from '@angular/forms';
 
 import {FormArray} from '@angular/forms/src/model';
 
 (function() {
-  function asyncValidator(expected: string, timeouts = {}) {
-    return (c: FormControl) => {
+  function asyncValidator(expected: string, timeouts = {}): AsyncValidatorFn {
+    return (c: AbstractControl) => {
       let resolve: (result: any) => void = undefined !;
-      const promise = new Promise(res => { resolve = res; });
+      const promise = new Promise<ValidationErrors|null>(res => { resolve = res; });
       const t = (timeouts as any)[c.value] != null ? (timeouts as any)[c.value] : 0;
       const res = c.value != expected ? {'async': true} : null;
 
@@ -31,7 +31,7 @@ import {FormArray} from '@angular/forms/src/model';
     };
   }
 
-  function asyncValidatorReturningObservable(c: FormControl) {
+  function asyncValidatorReturningObservable(c: AbstractControl) {
     const e = new EventEmitter();
     Promise.resolve(null).then(() => { e.emit({'async': true}); });
     return e;
@@ -45,6 +45,15 @@ import {FormArray} from '@angular/forms/src/model';
     it('should default the value to null', () => {
       const c = new FormControl();
       expect(c.value).toBe(null);
+    });
+
+    describe('markAllAsTouched', () => {
+      it('should mark only the control itself as touched', () => {
+        const control = new FormControl('');
+        expect(control.touched).toBe(false);
+        control.markAllAsTouched();
+        expect(control.touched).toBe(true);
+      });
     });
 
     describe('boxed values', () => {
@@ -991,6 +1000,37 @@ import {FormArray} from '@angular/forms/src/model';
         expect(a.value).toEqual(['one']);
       });
 
+      it('should ignore disabled array controls when determining dirtiness', () => {
+        const c = new FormControl('one');
+        const c2 = new FormControl('two');
+        const a = new FormArray([c, c2]);
+        c.markAsDirty();
+        expect(a.dirty).toBe(true);
+
+        c.disable();
+        expect(c.dirty).toBe(true);
+        expect(a.dirty).toBe(false);
+
+        c.enable();
+        expect(a.dirty).toBe(true);
+      });
+
+      it('should not make a dirty array not dirty when disabling controls', () => {
+        const c = new FormControl('one');
+        const c2 = new FormControl('two');
+        const a = new FormArray([c, c2]);
+
+        a.markAsDirty();
+        expect(a.dirty).toBe(true);
+        expect(c.dirty).toBe(false);
+
+        c.disable();
+        expect(a.dirty).toBe(true);
+
+        c.enable();
+        expect(a.dirty).toBe(true);
+      });
+
       it('should ignore disabled controls in validation', () => {
         const c = new FormControl(null, Validators.required);
         const c2 = new FormControl(null);
@@ -1040,6 +1080,22 @@ import {FormArray} from '@angular/forms/src/model';
         c.disable();
         expect(c.dirty).toBe(true);
         expect(g.dirty).toBe(false);
+
+        c.enable();
+        expect(g.dirty).toBe(true);
+      });
+
+      it('should not make a dirty group not dirty when disabling controls', () => {
+        const c = new FormControl('one');
+        const c2 = new FormControl('two');
+        const g = new FormGroup({one: c, two: c2});
+
+        g.markAsDirty();
+        expect(g.dirty).toBe(true);
+        expect(c.dirty).toBe(false);
+
+        c.disable();
+        expect(g.dirty).toBe(true);
 
         c.enable();
         expect(g.dirty).toBe(true);

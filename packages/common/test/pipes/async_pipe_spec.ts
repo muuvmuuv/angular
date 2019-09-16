@@ -6,10 +6,9 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {AsyncPipe} from '@angular/common';
+import {AsyncPipe, ɵgetDOM as getDOM} from '@angular/common';
 import {EventEmitter, WrappedValue} from '@angular/core';
 import {AsyncTestCompleter, beforeEach, describe, expect, inject, it} from '@angular/core/testing/src/testing_internal';
-import {getDOM} from '@angular/platform-browser/src/dom/dom_adapter';
 import {browserDetection} from '@angular/platform-browser/testing/src/browser_util';
 
 import {SpyChangeDetectorRef} from '../spies';
@@ -82,6 +81,18 @@ import {SpyChangeDetectorRef} from '../spies';
                async.done();
              }, 10);
            }));
+
+        it('should return unwrapped value for unchanged NaN', () => {
+          const emitter = new EventEmitter<any>();
+          emitter.emit(null);
+          pipe.transform(emitter);
+          emitter.next(NaN);
+          const firstResult = pipe.transform(emitter);
+          const secondResult = pipe.transform(emitter);
+          expect(firstResult instanceof WrappedValue).toBe(true);
+          expect((firstResult as WrappedValue).wrapped).toBeNaN();
+          expect(secondResult).toBeNaN();
+        });
       });
 
       describe('ngOnDestroy', () => {

@@ -51,9 +51,9 @@ class StackblitzBuilder {
   }
 
   _buildCopyrightStrings() {
-    var copyright = 'Copyright 2017-2018 Google Inc. All Rights Reserved.\n'
-      + 'Use of this source code is governed by an MIT-style license that\n'
-      + 'can be found in the LICENSE file at http://angular.io/license';
+    var copyright = 'Copyright Google LLC. All Rights Reserved.\n' +
+        'Use of this source code is governed by an MIT-style license that\n' +
+        'can be found in the LICENSE file at http://angular.io/license';
     var pad = '\n\n';
     this.copyrights.jsCss = `${pad}/*\n${copyright}\n*/`;
     this.copyrights.html = `${pad}<!-- \n${copyright}\n-->`;
@@ -221,9 +221,7 @@ class StackblitzBuilder {
 
   _encodeBase64(file) {
     // read binary data
-    var bitmap = fs.readFileSync(file);
-    // convert binary data to base64 encoded string
-    return Buffer(bitmap).toString('base64');
+    return fs.readFileSync(file, { encoding: 'base64' });
   }
 
   _existsSync(filename) {
@@ -251,7 +249,7 @@ class StackblitzBuilder {
       throw new Error(`Stackblitz config - unable to parse json file: ${configFileName}\n${e}`);
     }
 
-    var defaultIncludes = ['**/*.ts', '**/*.js', '**/*.css', '**/*.html', '**/*.md', '**/*.json', '**/*.png'];
+    var defaultIncludes = ['**/*.ts', '**/*.js', '**/*.css', '**/*.html', '**/*.md', '**/*.json', '**/*.png', '**/*.svg'];
     var boilerplateIncludes = ['src/environments/*.*', 'angular.json', 'src/polyfills.ts'];
     if (config.files) {
       if (config.files.length > 0) {

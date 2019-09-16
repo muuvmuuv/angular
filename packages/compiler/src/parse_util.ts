@@ -109,6 +109,9 @@ export class ParseSourceSpan {
   }
 }
 
+export const EMPTY_PARSE_LOCATION = new ParseLocation(new ParseSourceFile('', ''), 0, 0, 0);
+export const EMPTY_SOURCE_SPAN = new ParseSourceSpan(EMPTY_PARSE_LOCATION, EMPTY_PARSE_LOCATION);
+
 export enum ParseErrorLevel {
   WARNING,
   ERROR,
@@ -135,6 +138,22 @@ export function typeSourceSpan(kind: string, type: CompileIdentifierMetadata): P
   const moduleUrl = identifierModuleUrl(type);
   const sourceFileName = moduleUrl != null ? `in ${kind} ${identifierName(type)} in ${moduleUrl}` :
                                              `in ${kind} ${identifierName(type)}`;
+  const sourceFile = new ParseSourceFile('', sourceFileName);
+  return new ParseSourceSpan(
+      new ParseLocation(sourceFile, -1, -1, -1), new ParseLocation(sourceFile, -1, -1, -1));
+}
+
+/**
+ * Generates Source Span object for a given R3 Type for JIT mode.
+ *
+ * @param kind Component or Directive.
+ * @param typeName name of the Component or Directive.
+ * @param sourceUrl reference to Component or Directive source.
+ * @returns instance of ParseSourceSpan that represent a given Component or Directive.
+ */
+export function r3JitTypeSourceSpan(
+    kind: string, typeName: string, sourceUrl: string): ParseSourceSpan {
+  const sourceFileName = `in ${kind} ${typeName} in ${sourceUrl}`;
   const sourceFile = new ParseSourceFile('', sourceFileName);
   return new ParseSourceSpan(
       new ParseLocation(sourceFile, -1, -1, -1), new ParseLocation(sourceFile, -1, -1, -1));

@@ -57,7 +57,7 @@ aio-notification {
       border-radius: 15px;
       text-transform: uppercase;
       padding: 0 10px;
-      font-size: 12px;
+      @include font-size(12);
       @media (max-width: 780px) {
         display: none;
       }
@@ -89,7 +89,7 @@ aio-notification {
   }
 
   &.page-home, &.page-resources, &.page-events, &.page-features, &.page-presskit, &.page-contribute  {
-    section {
+    main {
       padding-top: $notificationHeight;
     }
   }

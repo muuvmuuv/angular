@@ -5,40 +5,68 @@
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-
-import {StylingContext} from './styling';
+import {StylingMapArray, TStylingContext} from '../styling_next/interfaces';
+import {CssSelector} from './projection';
+import {RNode} from './renderer';
 import {LView, TView} from './view';
 
 
 /**
- * TNodeType corresponds to the TNode.type property. It contains information
- * on how to map a particular set of bits in TNode.flags to the node type.
+ * TNodeType corresponds to the {@link TNode} `type` property.
  */
 export const enum TNodeType {
-  Container = 0b000,
-  Projection = 0b001,
-  View = 0b010,
-  Element = 0b011,
-  ViewOrElement = 0b010,
-  ElementContainer = 0b100,
-  IcuContainer = 0b101,
+  /**
+   * The TNode contains information about an {@link LContainer} for embedded views.
+   */
+  Container = 0,
+  /**
+   * The TNode contains information about an `<ng-content>` projection
+   */
+  Projection = 1,
+  /**
+   * The TNode contains information about an {@link LView}
+   */
+  View = 2,
+  /**
+   * The TNode contains information about a DOM element aka {@link RNode}.
+   */
+  Element = 3,
+  /**
+   * The TNode contains information about an `<ng-container>` element {@link RNode}.
+   */
+  ElementContainer = 4,
+  /**
+   * The TNode contains information about an ICU comment used in `i18n`.
+   */
+  IcuContainer = 5,
 }
 
 /**
  * Corresponds to the TNode.flags property.
  */
 export const enum TNodeFlags {
-  /** This bit is set if the node is a component */
-  isComponent = 0b0001,
+  /** This bit is set if the node is a host for any directive (including a component) */
+  isDirectiveHost = 0b00000001,
+
+  /**
+   * This bit is set if the node is a host for a component. Setting this bit implies that the
+   * isDirectiveHost bit is set as well. */
+  isComponentHost = 0b00000010,
 
   /** This bit is set if the node has been projected */
-  isProjected = 0b0010,
+  isProjected = 0b00000100,
 
-  /** This bit is set if the node has any content queries */
-  hasContentQuery = 0b0100,
+  /** This bit is set if any directive on this node has content queries */
+  hasContentQuery = 0b00001000,
 
-  /** This bit is set if the node has any directives that contain [class properties */
-  hasClassInput = 0b1000,
+  /** This bit is set if the node has any "class" inputs */
+  hasClassInput = 0b00010000,
+
+  /** This bit is set if the node has any "style" inputs */
+  hasStyleInput = 0b00100000,
+
+  /** This bit is set if the node has been detached by i18n */
+  isDetached = 0b01000000,
 }
 
 /**
@@ -103,20 +131,88 @@ export const enum AttributeMarker {
   Styles = 2,
 
   /**
-   * This marker indicates that the following attribute names were extracted from bindings (ex.:
-   * [foo]="exp") and / or event handlers (ex. (bar)="doSth()").
-   * Taking the above bindings and outputs as an example an attributes array could look as follows:
-   * ['class', 'fade in', AttributeMarker.SelectOnly, 'foo', 'bar']
+   * Signals that the following attribute names were extracted from input or output bindings.
+   *
+   * For example, given the following HTML:
+   *
+   * ```
+   * <div moo="car" [foo]="exp" (bar)="doSth()">
+   * ```
+   *
+   * the generated code is:
+   *
+   * ```
+   * var _c1 = ['moo', 'car', AttributeMarker.Bindings, 'foo', 'bar'];
+   * ```
    */
-  SelectOnly = 3,
+  Bindings = 3,
+
+  /**
+   * Signals that the following attribute names were hoisted from an inline-template declaration.
+   *
+   * For example, given the following HTML:
+   *
+   * ```
+   * <div *ngFor="let value of values; trackBy:trackBy" dirA [dirB]="value">
+   * ```
+   *
+   * the generated code for the `template()` instruction would include:
+   *
+   * ```
+   * ['dirA', '', AttributeMarker.Bindings, 'dirB', AttributeMarker.Template, 'ngFor', 'ngForOf',
+   * 'ngForTrackBy', 'let-value']
+   * ```
+   *
+   * while the generated code for the `element()` instruction inside the template function would
+   * include:
+   *
+   * ```
+   * ['dirA', '', AttributeMarker.Bindings, 'dirB']
+   * ```
+   */
+  Template = 4,
+
+  /**
+   * Signals that the following attribute is `ngProjectAs` and its value is a parsed `CssSelector`.
+   *
+   * For example, given the following HTML:
+   *
+   * ```
+   * <h1 attr="value" ngProjectAs="[title]">
+   * ```
+   *
+   * the generated code for the `element()` instruction would include:
+   *
+   * ```
+   * ['attr', 'value', AttributeMarker.ProjectAs, ['', 'title', '']]
+   * ```
+   */
+  ProjectAs = 5,
+
+  /**
+   * Signals that the following attribute will be translated by runtime i18n
+   *
+   * For example, given the following HTML:
+   *
+   * ```
+   * <div moo="car" foo="value" i18n-foo [bar]="binding" i18n-bar>
+   * ```
+   *
+   * the generated code is:
+   *
+   * ```
+   * var _c1 = ['moo', 'car', AttributeMarker.I18n, 'foo', 'bar'];
+   */
+  I18n = 6,
 }
 
 /**
  * A combination of:
- * - attribute names and values
- * - special markers acting as flags to alter attributes processing.
+ * - Attribute names and values.
+ * - Special markers acting as flags to alter attributes processing.
+ * - Parsed ngProjectAs selectors.
  */
-export type TAttributes = (string | AttributeMarker)[];
+export type TAttributes = (string | AttributeMarker | CssSelector)[];
 
 /**
  * Binding data (flyweight) for a particular node that is shared between all templates
@@ -169,7 +265,13 @@ export interface TNode {
   directiveEnd: number;
 
   /**
-   * Stores if Node isComponent, isProjected, hasContentQuery and hasClassInput
+   * Stores indexes of property bindings. This field is only set in the ngDevMode and holds indexes
+   * of property bindings so TestBed can get bound property metadata for a given node.
+   */
+  propertyBindings: number[]|null;
+
+  /**
+   * Stores if Node isComponent, isProjected, hasContentQuery, hasClassInput and hasStyleInput etc.
    */
   flags: TNodeFlags;
 
@@ -268,6 +370,14 @@ export interface TNode {
   next: TNode|null;
 
   /**
+   * The next projected sibling. Since in Angular content projection works on the node-by-node basis
+   * the act of projecting nodes might change nodes relationship at the insertion point (target
+   * view). At the same time we need to keep initial relationship between nodes as expressed in
+   * content view.
+   */
+  projectionNext: TNode|null;
+
+  /**
    * First child of the current node.
    *
    * For component nodes, the child will always be a ContentChild (in same view).
@@ -291,13 +401,6 @@ export interface TNode {
    */
   parent: TElementNode|TContainerNode|null;
 
-  /**
-   * If this node is part of an i18n block, it indicates whether this node is part of the DOM.
-   * If this node is not part of an i18n block, this field is null.
-   */
-  detached: boolean|null;
-
-  stylingTemplate: StylingContext|null;
   /**
    * List of projected TNodes for a given component host element OR index into the said nodes.
    *
@@ -332,9 +435,52 @@ export interface TNode {
    *   - This would return the first head node to project:
    *     `getHost(currentTNode).projection[currentTNode.projection]`.
    * - When projecting nodes the parent node retrieved may be a `<ng-content>` node, in which case
-   *   the process is recursive in nature (not implementation).
+   *   the process is recursive in nature.
+   *
+   * If `projection` is of type `RNode[][]` than we have a collection of native nodes passed as
+   * projectable nodes during dynamic component creation.
    */
-  projection: (TNode|null)[]|number|null;
+  projection: (TNode|RNode[])[]|number|null;
+
+  /**
+   * A collection of all style bindings and/or static style values for an element.
+   *
+   * This field will be populated if and when:
+   *
+   * - There are one or more initial styles on an element (e.g. `<div style="width:200px">`)
+   * - There are one or more style bindings on an element (e.g. `<div [style.width]="w">`)
+   *
+   * If and when there are only initial styles (no bindings) then an instance of `StylingMapArray`
+   * will be used here. Otherwise an instance of `TStylingContext` will be created when there
+   * are one or more style bindings on an element.
+   *
+   * During element creation this value is likely to be populated with an instance of
+   * `StylingMapArray` and only when the bindings are evaluated (which happens during
+   * update mode) then it will be converted to a `TStylingContext` if any style bindings
+   * are encountered. If and when this happens then the existing `StylingMapArray` value
+   * will be placed into the initial styling slot in the newly created `TStylingContext`.
+   */
+  styles: StylingMapArray|TStylingContext|null;
+
+  /**
+   * A collection of all class bindings and/or static class values for an element.
+   *
+   * This field will be populated if and when:
+   *
+   * - There are one or more initial classes on an element (e.g. `<div class="one two three">`)
+   * - There are one or more class bindings on an element (e.g. `<div [class.foo]="f">`)
+   *
+   * If and when there are only initial classes (no bindings) then an instance of `StylingMapArray`
+   * will be used here. Otherwise an instance of `TStylingContext` will be created when there
+   * are one or more class bindings on an element.
+   *
+   * During element creation this value is likely to be populated with an instance of
+   * `StylingMapArray` and only when the bindings are evaluated (which happens during
+   * update mode) then it will be converted to a `TStylingContext` if any class bindings
+   * are encountered. If and when this happens then the existing `StylingMapArray` value
+   * will be placed into the initial styling slot in the newly created `TStylingContext`.
+   */
+  classes: StylingMapArray|TStylingContext|null;
 }
 
 /** Static data for an element  */
@@ -352,10 +498,10 @@ export interface TElementNode extends TNode {
 
   /**
    * If this is a component TNode with projection, this will be an array of projected
-   * TNodes (see TNode.projection for more info). If it's a regular element node or a
-   * component without projection, it will be null.
+   * TNodes or native nodes (see TNode.projection for more info). If it's a regular element node or
+   * a component without projection, it will be null.
    */
-  projection: (TNode|null)[]|null;
+  projection: (TNode|RNode[])[]|null;
 }
 
 /** Static data for a text node */
@@ -464,13 +610,13 @@ export type PropertyAliases = {
 /**
  * Store the runtime input or output names for all the directives.
  *
- * - Even indices: directive index
- * - Odd indices: minified / internal name
+ * i+0: directive instance index
+ * i+1: publicName
+ * i+2: privateName
  *
- * e.g. [0, 'change-minified']
+ * e.g. [0, 'change', 'change-minified']
  */
 export type PropertyAliasValue = (number | string)[];
-
 
 /**
  * This array contains information about input properties that
@@ -480,14 +626,15 @@ export type PropertyAliasValue = (number | string)[];
  *
  * Within each sub-array:
  *
- * Even indices: minified/internal input name
- * Odd indices: initial value
+ * i+0: attribute name
+ * i+1: minified/internal input name
+ * i+2: initial value
  *
  * If a directive on a node does not have any input properties
  * that should be set from attributes, its index is set to null
  * to avoid a sparse array.
  *
- * e.g. [null, ['role-min', 'button']]
+ * e.g. [null, ['role-min', 'minified-input', 'button']]
  */
 export type InitialInputData = (InitialInputs | null)[];
 
@@ -495,10 +642,11 @@ export type InitialInputData = (InitialInputs | null)[];
  * Used by InitialInputData to store input properties
  * that should be set once from attributes.
  *
- * Even indices: minified/internal input name
- * Odd indices: initial value
+ * i+0: attribute name
+ * i+1: minified/internal input name
+ * i+2: initial value
  *
- * e.g. ['role-min', 'button']
+ * e.g. ['role-min', 'minified-input', 'button']
  */
 export type InitialInputs = string[];
 

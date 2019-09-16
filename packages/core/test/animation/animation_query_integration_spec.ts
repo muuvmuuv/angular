@@ -8,13 +8,13 @@
 import {AUTO_STYLE, AnimationPlayer, animate, animateChild, group, query, sequence, stagger, state, style, transition, trigger, ɵAnimationGroupPlayer as AnimationGroupPlayer} from '@angular/animations';
 import {AnimationDriver, ɵAnimationEngine} from '@angular/animations/browser';
 import {matchesElement} from '@angular/animations/browser/src/render/shared';
+import {TransitionAnimationPlayer} from '@angular/animations/browser/src/render/transition_animation_engine';
 import {ENTER_CLASSNAME, LEAVE_CLASSNAME} from '@angular/animations/browser/src/util';
 import {MockAnimationDriver, MockAnimationPlayer} from '@angular/animations/browser/testing';
 import {CommonModule} from '@angular/common';
 import {Component, HostBinding, ViewChild} from '@angular/core';
 import {TestBed, fakeAsync, flushMicrotasks} from '@angular/core/testing';
 import {BrowserAnimationsModule} from '@angular/platform-browser/animations';
-import {fixmeIvy, ivyEnabled} from '@angular/private/testing';
 
 import {HostListener} from '../../src/metadata/directives';
 
@@ -260,7 +260,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -295,72 +295,71 @@ import {HostListener} from '../../src/metadata/directives';
         expect(p6.element.classList.contains('b3')).toBeTruthy();
       });
 
-      fixmeIvy('unknown').it(
-          'should be able to query all active animations using :animating in a query', () => {
-            @Component({
-              selector: 'ani-cmp',
-              template: `
+      it('should be able to query all active animations using :animating in a query', () => {
+        @Component({
+          selector: 'ani-cmp',
+          template: `
             <div [@myAnimation]="exp" #parent>
               <div *ngFor="let item of items" class="item e-{{ item }}">
               </div>
             </div>
           `,
-              animations: [
-                trigger(
-                    'myAnimation',
-                    [
-                      transition(
-                          '* => a',
-                          [
-                            query(
-                                '.item:nth-child(odd)',
-                                [
-                                  style({opacity: 0}),
-                                  animate(1000, style({opacity: 1})),
-                                ]),
-                          ]),
-                      transition(
-                          '* => b',
-                          [
-                            query(
-                                '.item:animating',
-                                [
-                                  style({opacity: 1}),
-                                  animate(1000, style({opacity: 0})),
-                                ]),
-                          ]),
-                    ]),
-              ]
-            })
-            class Cmp {
-              public exp: any;
-              public items: number[] = [0, 1, 2, 3, 4];
-            }
+          animations: [
+            trigger(
+                'myAnimation',
+                [
+                  transition(
+                      '* => a',
+                      [
+                        query(
+                            '.item:nth-child(odd)',
+                            [
+                              style({opacity: 0}),
+                              animate(1000, style({opacity: 1})),
+                            ]),
+                      ]),
+                  transition(
+                      '* => b',
+                      [
+                        query(
+                            '.item:animating',
+                            [
+                              style({opacity: 1}),
+                              animate(1000, style({opacity: 0})),
+                            ]),
+                      ]),
+                ]),
+          ]
+        })
+        class Cmp {
+          public exp: any;
+          public items: number[] = [0, 1, 2, 3, 4];
+        }
 
-            TestBed.configureTestingModule({declarations: [Cmp]});
+        TestBed.configureTestingModule({declarations: [Cmp]});
 
-            const engine = TestBed.get(ɵAnimationEngine);
-            const fixture = TestBed.createComponent(Cmp);
-            const cmp = fixture.componentInstance;
+        const engine = TestBed.inject(ɵAnimationEngine);
+        const fixture = TestBed.createComponent(Cmp);
+        const cmp = fixture.componentInstance;
 
-            cmp.exp = 'a';
-            fixture.detectChanges();
-            engine.flush();
+        cmp.exp = 'a';
+        fixture.detectChanges();
+        engine.flush();
 
-            let players = getLog();
-            expect(players.length).toEqual(3);
-            resetLog();
+        let players = getLog();
+        expect(players.length).toEqual(3);
+        resetLog();
 
-            cmp.exp = 'b';
-            fixture.detectChanges();
-            engine.flush();
+        cmp.exp = 'b';
+        fixture.detectChanges();
+        engine.flush();
 
-            players = getLog();
-            expect(players.length).toEqual(3);
-            expect(players[0].element.classList.contains('e-0')).toBeTruthy();
-            expect(players[1].element.classList.contains('e-2')).toBeTruthy();
-            expect(players[2].element.classList.contains('e-4')).toBeTruthy();
-          });
+        players = getLog();
+        expect(players.length).toEqual(3);
+        expect(players[0].element.classList.contains('e-0')).toBeTruthy();
+        expect(players[1].element.classList.contains('e-2')).toBeTruthy();
+        expect(players[2].element.classList.contains('e-4')).toBeTruthy();
+      });
 
       it('should be able to query all actively queued animation triggers via `@*:animating`',
          () => {
@@ -405,7 +404,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -485,7 +484,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -560,7 +559,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -612,7 +611,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -671,7 +670,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -724,7 +723,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -781,7 +780,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -802,7 +801,7 @@ import {HostListener} from '../../src/metadata/directives';
         expect(player.element.style.height).toEqual('444px');
       });
 
-      fixmeIvy('unknown').it('should find newly inserted items in the component via :enter', () => {
+      it('should find newly inserted items in the component via :enter', () => {
         @Component({
           selector: 'ani-cmp',
           template: `
@@ -833,7 +832,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -853,12 +852,11 @@ import {HostListener} from '../../src/metadata/directives';
         });
       });
 
-      fixmeIvy('unknown').it(
-          'should cleanup :enter and :leave artifacts from nodes when any animation sequences fail to be built',
-          () => {
-            @Component({
-              selector: 'ani-cmp',
-              template: `
+      it('should cleanup :enter and :leave artifacts from nodes when any animation sequences fail to be built',
+         () => {
+           @Component({
+             selector: 'ani-cmp',
+             template: `
             <div [@myAnimation]="items.length" class="parent" #container>
               <div *ngFor="let item of items" class="child">
                 {{ item }}
@@ -866,56 +864,56 @@ import {HostListener} from '../../src/metadata/directives';
               <div *ngIf="items.length == 0" class="child">Leave!</div>
             </div>
           `,
-              animations: [
-                trigger(
-                    'myAnimation',
-                    [
-                      transition('* => 0', []),
-                      transition(
-                          '* => *',
-                          [
-                            query(
-                                '.child:enter',
-                                [
-                                  style({opacity: 0}),
-                                  animate(1000, style({opacity: 1})),
-                                ]),
-                            query(
-                                '.incorrect-child:leave',
-                                [
-                                  animate(1000, style({opacity: 0})),
-                                ]),
-                          ]),
-                    ]),
-              ]
-            })
-            class Cmp {
-              @ViewChild('container') public container: any;
-              public items: any[] = [];
-            }
+             animations: [
+               trigger(
+                   'myAnimation',
+                   [
+                     transition('* => 0', []),
+                     transition(
+                         '* => *',
+                         [
+                           query(
+                               '.child:enter',
+                               [
+                                 style({opacity: 0}),
+                                 animate(1000, style({opacity: 1})),
+                               ]),
+                           query(
+                               '.incorrect-child:leave',
+                               [
+                                 animate(1000, style({opacity: 0})),
+                               ]),
+                         ]),
+                   ]),
+             ]
+           })
+           class Cmp {
+             @ViewChild('container', {static: false}) public container: any;
+             public items: any[] = [];
+           }
 
-            TestBed.configureTestingModule({declarations: [Cmp]});
+           TestBed.configureTestingModule({declarations: [Cmp]});
 
-            const engine = TestBed.get(ɵAnimationEngine);
-            const fixture = TestBed.createComponent(Cmp);
-            const cmp = fixture.componentInstance;
+           const engine = TestBed.inject(ɵAnimationEngine);
+           const fixture = TestBed.createComponent(Cmp);
+           const cmp = fixture.componentInstance;
 
-            cmp.items = [];
-            fixture.detectChanges();
+           cmp.items = [];
+           fixture.detectChanges();
 
-            cmp.items = [0, 1, 2, 3, 4];
+           cmp.items = [0, 1, 2, 3, 4];
 
-            expect(() => { fixture.detectChanges(); }).toThrow();
+           expect(() => { fixture.detectChanges(); }).toThrow();
 
-            const children = cmp.container.nativeElement.querySelectorAll('.child');
-            expect(children.length).toEqual(5);
+           const children = cmp.container.nativeElement.querySelectorAll('.child');
+           expect(children.length).toEqual(5);
 
-            for (let i = 0; i < children.length; i++) {
-              let child = children[i];
-              expect(child.classList.contains(ENTER_CLASSNAME)).toBe(false);
-              expect(child.classList.contains(LEAVE_CLASSNAME)).toBe(false);
-            }
-          });
+           for (let i = 0; i < children.length; i++) {
+             let child = children[i];
+             expect(child.classList.contains(ENTER_CLASSNAME)).toBe(false);
+             expect(child.classList.contains(LEAVE_CLASSNAME)).toBe(false);
+           }
+         });
 
       it('should find elements that have been removed via :leave', () => {
         @Component({
@@ -942,7 +940,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -994,7 +992,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1056,7 +1054,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1137,7 +1135,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -1204,14 +1202,14 @@ import {HostListener} from '../../src/metadata/directives';
              public exp1: any = '';
              public exp2: any = true;
 
-             @ViewChild('ancestor') public ancestorElm: any;
+             @ViewChild('ancestor', {static: false}) public ancestorElm: any;
 
-             @ViewChild('parent') public parentElm: any;
+             @ViewChild('parent', {static: false}) public parentElm: any;
            }
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
            fixture.detectChanges();
@@ -1283,14 +1281,14 @@ import {HostListener} from '../../src/metadata/directives';
              public exp2: any = '';
              public parentExp: any = true;
 
-             @ViewChild('ancestor') public ancestorElm: any;
+             @ViewChild('ancestor', {static: false}) public ancestorElm: any;
 
-             @ViewChild('parent') public parentElm: any;
+             @ViewChild('parent', {static: false}) public parentElm: any;
            }
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
            fixture.detectChanges();
@@ -1358,7 +1356,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1411,7 +1409,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1474,7 +1472,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1544,7 +1542,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -1599,7 +1597,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -1639,7 +1637,7 @@ import {HostListener} from '../../src/metadata/directives';
            class ParentCmp {
              public exp: any;
 
-             @ViewChild('child') public child: any;
+             @ViewChild('child', {static: false}) public child: any;
            }
 
            @Component({
@@ -1688,7 +1686,7 @@ import {HostListener} from '../../src/metadata/directives';
            class ParentCmp {
              public exp: any;
 
-             @ViewChild('child') public child: any;
+             @ViewChild('child', {static: true}) public child: any;
            }
 
            @Component({
@@ -1706,10 +1704,6 @@ import {HostListener} from '../../src/metadata/directives';
            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
            const fixture = TestBed.createComponent(ParentCmp);
            const cmp = fixture.componentInstance;
-
-           // In Ivy, change detection needs to run before the ViewQuery for cmp.child will resolve.
-           // Keeping this test enabled since we still want to test the animation logic in Ivy.
-           if (ivyEnabled) fixture.detectChanges();
 
            cmp.child.items = [4, 5, 6];
            fixture.detectChanges();
@@ -1855,14 +1849,14 @@ import {HostListener} from '../../src/metadata/directives';
           public exp1: any;
           public exp2: any;
 
-          @ViewChild('parent') public elm1: any;
+          @ViewChild('parent', {static: false}) public elm1: any;
 
-          @ViewChild('child') public elm2: any;
+          @ViewChild('child', {static: false}) public elm2: any;
         }
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -1917,12 +1911,12 @@ import {HostListener} from '../../src/metadata/directives';
              public exp: any;
              public items: any[] = [0, 1, 2, 3, 4];
 
-             @ViewChild('parent') public elm: any;
+             @ViewChild('parent', {static: false}) public elm: any;
            }
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -1987,12 +1981,12 @@ import {HostListener} from '../../src/metadata/directives';
           public exp: any;
           public items: any[] = [0, 1, 2, 3, 4];
 
-          @ViewChild('parent') public elm: any;
+          @ViewChild('parent', {static: false}) public elm: any;
         }
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -2040,12 +2034,12 @@ import {HostListener} from '../../src/metadata/directives';
              public exp1: any;
              public exp2: any;
 
-             @ViewChild('parent') public elm: any;
+             @ViewChild('parent', {static: false}) public elm: any;
            }
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -2110,12 +2104,12 @@ import {HostListener} from '../../src/metadata/directives';
           public exp1: any;
           public exp2: any;
 
-          @ViewChild('parent') public elm: any;
+          @ViewChild('parent', {static: false}) public elm: any;
         }
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -2163,12 +2157,12 @@ import {HostListener} from '../../src/metadata/directives';
           public exp1: any;
           public exp2: any;
 
-          @ViewChild('parent') public elm: any;
+          @ViewChild('parent', {static: false}) public elm: any;
         }
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -2215,12 +2209,12 @@ import {HostListener} from '../../src/metadata/directives';
           public exp1: any;
           public exp2: any;
 
-          @ViewChild('parent') public elm: any;
+          @ViewChild('parent', {static: false}) public elm: any;
         }
 
         TestBed.configureTestingModule({declarations: [Cmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
 
@@ -2240,83 +2234,82 @@ import {HostListener} from '../../src/metadata/directives';
         expect(p3.element.classList.contains('parent1')).toBeTruthy();
       });
 
-      fixmeIvy('unknown').it(
-          'should emulate a leave animation on the nearest sub host elements when a parent is removed',
-          fakeAsync(() => {
-            @Component({
-              selector: 'ani-cmp',
-              template: `
+      it('should emulate a leave animation on the nearest sub host elements when a parent is removed',
+         fakeAsync(() => {
+           @Component({
+             selector: 'ani-cmp',
+             template: `
             <div @parent *ngIf="exp" class="parent1" #parent>
               <child-cmp #child @leave (@leave.start)="animateStart($event)"></child-cmp>
             </div>
           `,
-              animations: [
-                trigger(
-                    'leave',
-                    [
-                      transition(':leave', [animate(1000, style({color: 'gold'}))]),
-                    ]),
-                trigger(
-                    'parent',
-                    [
-                      transition(':leave', [query(':leave', animateChild())]),
-                    ]),
-              ]
-            })
-            class ParentCmp {
-              public exp: boolean = true;
-              @ViewChild('child') public childElm: any;
+             animations: [
+               trigger(
+                   'leave',
+                   [
+                     transition(':leave', [animate(1000, style({color: 'gold'}))]),
+                   ]),
+               trigger(
+                   'parent',
+                   [
+                     transition(':leave', [query(':leave', animateChild())]),
+                   ]),
+             ]
+           })
+           class ParentCmp {
+             public exp: boolean = true;
+             @ViewChild('child', {static: false}) public childElm: any;
 
-              public childEvent: any;
+             public childEvent: any;
 
-              animateStart(event: any) {
-                if (event.toState == 'void') {
-                  this.childEvent = event;
-                }
-              }
-            }
+             animateStart(event: any) {
+               if (event.toState == 'void') {
+                 this.childEvent = event;
+               }
+             }
+           }
 
-            @Component({
-              selector: 'child-cmp',
-              template: '...',
-              animations: [
-                trigger(
-                    'child',
-                    [
-                      transition(':leave', [animate(1000, style({color: 'gold'}))]),
-                    ]),
-              ]
-            })
-            class ChildCmp {
-              public childEvent: any;
+           @Component({
+             selector: 'child-cmp',
+             template: '...',
+             animations: [
+               trigger(
+                   'child',
+                   [
+                     transition(':leave', [animate(1000, style({color: 'gold'}))]),
+                   ]),
+             ]
+           })
+           class ChildCmp {
+             public childEvent: any;
 
-              @HostBinding('@child') public animate = true;
+             @HostBinding('@child') public animate = true;
 
-              @HostListener('@child.start', ['$event'])
-              animateStart(event: any) {
-                if (event.toState == 'void') {
-                  this.childEvent = event;
-                }
-              }
-            }
+             @HostListener('@child.start', ['$event'])
+             animateStart(event: any) {
+               if (event.toState == 'void') {
+                 this.childEvent = event;
+               }
+             }
+           }
 
-            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
-            const fixture = TestBed.createComponent(ParentCmp);
-            const cmp = fixture.componentInstance;
+           TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
+           const fixture = TestBed.createComponent(ParentCmp);
+           const cmp = fixture.componentInstance;
 
-            fixture.detectChanges();
+           fixture.detectChanges();
 
-            const childCmp = cmp.childElm;
+           const childCmp = cmp.childElm;
 
-            cmp.exp = false;
-            fixture.detectChanges();
-            flushMicrotasks();
+           cmp.exp = false;
+           fixture.detectChanges();
+           flushMicrotasks();
 
-            expect(cmp.childEvent.toState).toEqual('void');
-            expect(cmp.childEvent.totalTime).toEqual(1000);
-            expect(childCmp.childEvent.toState).toEqual('void');
-            expect(childCmp.childEvent.totalTime).toEqual(1000);
-          }));
+           expect(cmp.childEvent.toState).toEqual('void');
+           expect(cmp.childEvent.totalTime).toEqual(1000);
+           expect(childCmp.childEvent.toState).toEqual('void');
+           expect(childCmp.childEvent.totalTime).toEqual(1000);
+         }));
 
       it('should emulate a leave animation on a sub component\'s inner elements when a parent leave animation occurs with animateChild',
          () => {
@@ -2368,7 +2361,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(ParentCmp);
            const cmp = fixture.componentInstance;
 
@@ -2445,28 +2438,27 @@ import {HostListener} from '../../src/metadata/directives';
            expect(element.innerText.trim()).toMatch(/this\s+child/mg);
          }));
 
-      fixmeIvy('unknown').it(
-          'should only mark outermost *directive nodes :enter and :leave when inserts and removals occur',
-          () => {
-            @Component({
-              selector: 'ani-cmp',
-              animations: [
-                trigger(
-                    'anim',
-                    [
-                      transition(
-                          '* => enter',
-                          [
-                            query(':enter', [animate(1000, style({color: 'red'}))]),
-                          ]),
-                      transition(
-                          '* => leave',
-                          [
-                            query(':leave', [animate(1000, style({color: 'blue'}))]),
-                          ]),
-                    ]),
-              ],
-              template: `
+      it('should only mark outermost *directive nodes :enter and :leave when inserts and removals occur',
+         () => {
+           @Component({
+             selector: 'ani-cmp',
+             animations: [
+               trigger(
+                   'anim',
+                   [
+                     transition(
+                         '* => enter',
+                         [
+                           query(':enter', [animate(1000, style({color: 'red'}))]),
+                         ]),
+                     transition(
+                         '* => leave',
+                         [
+                           query(':leave', [animate(1000, style({color: 'blue'}))]),
+                         ]),
+                   ]),
+             ],
+             template: `
             <section class="container" [@anim]="exp ? 'enter' : 'leave'">
               <div class="a" *ngIf="exp">
                 <div class="b" *ngIf="exp">
@@ -2482,47 +2474,46 @@ import {HostListener} from '../../src/metadata/directives';
               </div>
             </section>
           `
-            })
-            class Cmp {
-              // TODO(issue/24571): remove '!'.
-              public exp !: boolean;
-            }
+           })
+           class Cmp {
+             // TODO(issue/24571): remove '!'.
+             public exp !: boolean;
+           }
 
-            TestBed.configureTestingModule({declarations: [Cmp]});
+           TestBed.configureTestingModule({declarations: [Cmp]});
 
-            const engine = TestBed.get(ɵAnimationEngine);
-            const fixture = TestBed.createComponent(Cmp);
-            const cmp = fixture.componentInstance;
-            const container = fixture.elementRef.nativeElement;
+           const engine = TestBed.inject(ɵAnimationEngine);
+           const fixture = TestBed.createComponent(Cmp);
+           const cmp = fixture.componentInstance;
+           const container = fixture.elementRef.nativeElement;
 
-            cmp.exp = true;
-            fixture.detectChanges();
-            engine.flush();
+           cmp.exp = true;
+           fixture.detectChanges();
+           engine.flush();
 
-            let players = getLog();
-            resetLog();
-            expect(players.length).toEqual(2);
-            const [p1, p2] = players;
+           let players = getLog();
+           resetLog();
+           expect(players.length).toEqual(2);
+           const [p1, p2] = players;
 
-            expect(p1.element.classList.contains('a'));
-            expect(p2.element.classList.contains('d'));
+           expect(p1.element.classList.contains('a'));
+           expect(p2.element.classList.contains('d'));
 
-            cmp.exp = false;
-            fixture.detectChanges();
-            engine.flush();
+           cmp.exp = false;
+           fixture.detectChanges();
+           engine.flush();
 
-            players = getLog();
-            resetLog();
-            expect(players.length).toEqual(2);
-            const [p3, p4] = players;
+           players = getLog();
+           resetLog();
+           expect(players.length).toEqual(2);
+           const [p3, p4] = players;
 
-            expect(p3.element.classList.contains('a'));
-            expect(p4.element.classList.contains('d'));
-          });
+           expect(p3.element.classList.contains('a'));
+           expect(p4.element.classList.contains('d'));
+         });
 
-      fixmeIvy('unknown').it(
-          'should collect multiple root levels of :enter and :leave nodes', () => {
-            @Component({
+      it('should collect multiple root levels of :enter and :leave nodes', () => {
+        @Component({
           selector: 'ani-cmp',
           animations: [
             trigger('pageAnimation', [
@@ -2557,88 +2548,88 @@ import {HostListener} from '../../src/metadata/directives';
           `
         })
         class Cmp {
-              get title() {
-                if (this.page1) {
-                  return 'hello from page1';
-                }
-                return 'greetings from page2';
-              }
-
-              page1 = false;
-              page2 = false;
-              loading = false;
-
-              get status() {
-                if (this.loading) return 'loading';
-                if (this.page1) return 'page1';
-                if (this.page2) return 'page2';
-                return '';
-              }
+          get title() {
+            if (this.page1) {
+              return 'hello from page1';
             }
+            return 'greetings from page2';
+          }
 
-            TestBed.configureTestingModule({declarations: [Cmp]});
+          page1 = false;
+          page2 = false;
+          loading = false;
 
-            const engine = TestBed.get(ɵAnimationEngine);
-            const fixture = TestBed.createComponent(Cmp);
-            const cmp = fixture.componentInstance;
-            cmp.loading = true;
-            fixture.detectChanges();
-            engine.flush();
+          get status() {
+            if (this.loading) return 'loading';
+            if (this.page1) return 'page1';
+            if (this.page2) return 'page2';
+            return '';
+          }
+        }
 
-            let players = getLog();
-            resetLog();
-            cancelAllPlayers(players);
+        TestBed.configureTestingModule({declarations: [Cmp]});
 
-            cmp.page1 = true;
-            cmp.loading = false;
-            fixture.detectChanges();
-            engine.flush();
+        const engine = TestBed.inject(ɵAnimationEngine);
+        const fixture = TestBed.createComponent(Cmp);
+        const cmp = fixture.componentInstance;
+        cmp.loading = true;
+        fixture.detectChanges();
+        engine.flush();
 
-            let p1: MockAnimationPlayer;
-            let p2: MockAnimationPlayer;
-            let p3: MockAnimationPlayer;
+        let players = getLog();
+        resetLog();
+        cancelAllPlayers(players);
 
-            players = getLog();
-            expect(players.length).toEqual(3);
-            [p1, p2, p3] = players;
+        cmp.page1 = true;
+        cmp.loading = false;
+        fixture.detectChanges();
+        engine.flush();
 
-            expect(p1.element.classList.contains('loading')).toBe(true);
-            expect(p2.element.classList.contains('title')).toBe(true);
-            expect(p3.element.classList.contains('page1')).toBe(true);
+        let p1: MockAnimationPlayer;
+        let p2: MockAnimationPlayer;
+        let p3: MockAnimationPlayer;
 
-            resetLog();
-            cancelAllPlayers(players);
+        players = getLog();
+        expect(players.length).toEqual(3);
+        [p1, p2, p3] = players;
 
-            cmp.page1 = false;
-            cmp.loading = true;
-            fixture.detectChanges();
+        expect(p1.element.classList.contains('loading')).toBe(true);
+        expect(p2.element.classList.contains('title')).toBe(true);
+        expect(p3.element.classList.contains('page1')).toBe(true);
 
-            players = getLog();
-            cancelAllPlayers(players);
+        resetLog();
+        cancelAllPlayers(players);
 
-            expect(players.length).toEqual(3);
-            [p1, p2, p3] = players;
+        cmp.page1 = false;
+        cmp.loading = true;
+        fixture.detectChanges();
 
-            expect(p1.element.classList.contains('title')).toBe(true);
-            expect(p2.element.classList.contains('page1')).toBe(true);
-            expect(p3.element.classList.contains('loading')).toBe(true);
+        players = getLog();
+        cancelAllPlayers(players);
 
-            resetLog();
-            cancelAllPlayers(players);
+        expect(players.length).toEqual(3);
+        [p1, p2, p3] = players;
 
-            cmp.page2 = true;
-            cmp.loading = false;
-            fixture.detectChanges();
-            engine.flush();
+        expect(p1.element.classList.contains('title')).toBe(true);
+        expect(p2.element.classList.contains('page1')).toBe(true);
+        expect(p3.element.classList.contains('loading')).toBe(true);
 
-            players = getLog();
-            expect(players.length).toEqual(3);
-            [p1, p2, p3] = players;
+        resetLog();
+        cancelAllPlayers(players);
 
-            expect(p1.element.classList.contains('loading')).toBe(true);
-            expect(p2.element.classList.contains('title')).toBe(true);
-            expect(p3.element.classList.contains('page2')).toBe(true);
-          });
+        cmp.page2 = true;
+        cmp.loading = false;
+        fixture.detectChanges();
+        engine.flush();
+
+        players = getLog();
+        expect(players.length).toEqual(3);
+        [p1, p2, p3] = players;
+
+        expect(p1.element.classList.contains('loading')).toBe(true);
+        expect(p2.element.classList.contains('title')).toBe(true);
+        expect(p3.element.classList.contains('page2')).toBe(true);
+      });
 
       it('should emulate leave animation callbacks for all sub elements that have leave triggers within the component',
          fakeAsync(() => {
@@ -2675,7 +2666,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [Cmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -2703,7 +2694,7 @@ import {HostListener} from '../../src/metadata/directives';
         class ParentCmp {
           public exp: any;
 
-          @ViewChild('child') public childCmp: any;
+          @ViewChild('child', {static: false}) public childCmp: any;
         }
 
         @Component({
@@ -2718,7 +2709,7 @@ import {HostListener} from '../../src/metadata/directives';
 
         TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
 
-        const engine = TestBed.get(ɵAnimationEngine);
+        const engine = TestBed.inject(ɵAnimationEngine);
         const fixture = TestBed.createComponent(ParentCmp);
         fixture.detectChanges();
         engine.flush();
@@ -2738,7 +2729,7 @@ import {HostListener} from '../../src/metadata/directives';
         expect(players.length).toEqual(2);
         expect(engine.players.length).toEqual(1);
 
-        expect(engine.players[0].getRealPlayer()).toBe(players[1]);
+        expect((engine.players[0] as TransitionAnimationPlayer).getRealPlayer()).toBe(players[1]);
       });
 
       it('should fire and synchronize the start/done callbacks on sub triggers even if they are not allowed to animate within the animation',
@@ -2767,7 +2758,7 @@ import {HostListener} from '../../src/metadata/directives';
           `
            })
            class ParentCmp {
-             @ViewChild('child') public childCmp: any;
+             @ViewChild('child', {static: false}) public childCmp: any;
 
              public exp: any;
              public log: string[] = [];
@@ -2803,7 +2794,7 @@ import {HostListener} from '../../src/metadata/directives';
            }
 
            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(ParentCmp);
            fixture.detectChanges();
            flushMicrotasks();
@@ -2906,7 +2897,7 @@ import {HostListener} from '../../src/metadata/directives';
            }
 
            TestBed.configureTestingModule({declarations: [Cmp]});
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            fixture.detectChanges();
            flushMicrotasks();
@@ -2945,7 +2936,7 @@ import {HostListener} from '../../src/metadata/directives';
            class ParentCmp {
              public exp: any;
 
-             @ViewChild('child') public childCmp: any;
+             @ViewChild('child', {static: false}) public childCmp: any;
            }
 
            @Component({
@@ -2962,7 +2953,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(ParentCmp);
            fixture.detectChanges();
            engine.flush();
@@ -2977,7 +2968,8 @@ import {HostListener} from '../../src/metadata/directives';
            engine.flush();
 
            expect(engine.players.length).toEqual(1);  // child player, parent cover, parent player
-           const groupPlayer = engine.players[0].getRealPlayer() as AnimationGroupPlayer;
+           const groupPlayer = (engine.players[0] as TransitionAnimationPlayer)
+                                   .getRealPlayer() as AnimationGroupPlayer;
            const childPlayer = groupPlayer.players.find(player => {
              if (player instanceof MockAnimationPlayer) {
                return matchesElement(player.element, '.child');
@@ -3023,13 +3015,13 @@ import {HostListener} from '../../src/metadata/directives';
            class ParentCmp {
              public exp: any;
 
-             @ViewChild('child') public innerCmp: any;
+             @ViewChild('child', {static: false}) public innerCmp: any;
            }
 
            @Component(
                {selector: 'child-cmp', template: '<grandchild-cmp #grandchild></grandchild-cmp>'})
            class ChildCmp {
-             @ViewChild('grandchild') public innerCmp: any;
+             @ViewChild('grandchild', {static: false}) public innerCmp: any;
            }
 
            @Component({
@@ -3054,7 +3046,7 @@ import {HostListener} from '../../src/metadata/directives';
 
            TestBed.configureTestingModule({declarations: [ParentCmp, ChildCmp, GrandChildCmp]});
 
-           const engine = TestBed.get(ɵAnimationEngine);
+           const engine = TestBed.inject(ɵAnimationEngine);
            const fixture = TestBed.createComponent(ParentCmp);
            fixture.detectChanges();
            engine.flush();

@@ -58,11 +58,12 @@ export class AsyncObservablePipeComponent {
 // protractor will not see us. Also we want to have this outside the docregion so as not to confuse
 // the reader.
 function setInterval(fn: Function, delay: number) {
-  const zone = Zone.current;
+  const zone = (window as any)['Zone'].current;
   let rootZone = zone;
   while (rootZone.parent) {
     rootZone = rootZone.parent;
   }
-  rootZone.run(
-      () => { window.setInterval(function() { zone.run(fn, this, arguments as any); }, delay); });
+  rootZone.run(() => {
+    window.setInterval(function(this: unknown) { zone.run(fn, this, arguments as any); }, delay);
+  });
 }

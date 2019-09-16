@@ -83,7 +83,7 @@ export class CompileMetadataResolver {
 
   private _createProxyClass(baseType: any, name: string): cpl.ProxyClass {
     let delegate: any = null;
-    const proxyClass: cpl.ProxyClass = <any>function() {
+    const proxyClass: cpl.ProxyClass = <any>function(this: unknown) {
       if (!delegate) {
         throw new Error(
             `Illegal state: Class ${name} for type ${stringify(baseType)} is not compiled yet!`);
@@ -348,11 +348,7 @@ export class CompileMetadataResolver {
     } else {
       // Directive
       if (!selector) {
-        this._reportError(
-            syntaxError(
-                `Directive ${stringifyType(directiveType)} has no selector, please add it!`),
-            directiveType);
-        selector = 'error';
+        selector = null !;
       }
     }
 
@@ -430,6 +426,21 @@ export class CompileMetadataResolver {
   isDirective(type: any) {
     return !!this._loadSummary(type, cpl.CompileSummaryKind.Directive) ||
         this._directiveResolver.isDirective(type);
+  }
+
+  isAbstractDirective(type: any): boolean {
+    const summary =
+        this._loadSummary(type, cpl.CompileSummaryKind.Directive) as cpl.CompileDirectiveSummary;
+    if (summary && !summary.isComponent) {
+      return !summary.selector;
+    }
+
+    const meta = this._directiveResolver.resolve(type, false);
+    if (meta && !createComponent.isTypeOf(meta)) {
+      return !meta.selector;
+    }
+
+    return false;
   }
 
   isPipe(type: any) {
@@ -607,6 +618,12 @@ export class CompileMetadataResolver {
         }
         const declaredIdentifier = this._getIdentifierMetadata(declaredType);
         if (this.isDirective(declaredType)) {
+          if (this.isAbstractDirective(declaredType)) {
+            this._reportError(
+                syntaxError(
+                    `Directive ${stringifyType(declaredType)} has no selector, please add it!`),
+                declaredType);
+          }
           transitiveModule.addDirective(declaredIdentifier);
           declaredDirectives.push(declaredIdentifier);
           this._addTypeToModule(declaredType, moduleType);
@@ -907,7 +924,7 @@ export class CompileMetadataResolver {
       let isOptional = false;
       let token: any = null;
       if (Array.isArray(param)) {
-        param.forEach((paramEntry) => {
+        param.forEach((paramEntry: any) => {
           if (createHost.isTypeOf(paramEntry)) {
             isHost = true;
           } else if (createSelf.isTypeOf(paramEntry)) {
@@ -918,11 +935,12 @@ export class CompileMetadataResolver {
             isOptional = true;
           } else if (createAttribute.isTypeOf(paramEntry)) {
             isAttribute = true;
-            token = paramEntry.attributeName;
+            token = (paramEntry as any).attributeName;
           } else if (createInject.isTypeOf(paramEntry)) {
-            token = paramEntry.token;
+            token = (paramEntry as any).token;
           } else if (
-              createInjectionToken.isTypeOf(paramEntry) || paramEntry instanceof StaticSymbol) {
+              createInjectionToken.isTypeOf(paramEntry) ||
+              (paramEntry as any) instanceof StaticSymbol) {
             token = paramEntry;
           } else if (isValidType(paramEntry) && token == null) {
             token = paramEntry;
@@ -933,7 +951,7 @@ export class CompileMetadataResolver {
       }
       if (token == null) {
         hasUnknownDeps = true;
-        return null !;
+        return {};
       }
 
       return {
@@ -949,7 +967,7 @@ export class CompileMetadataResolver {
 
     if (hasUnknownDeps) {
       const depsTokens =
-          dependenciesMetadata.map((dep) => dep ? stringifyType(dep.token) : '?').join(', ');
+          dependenciesMetadata.map((dep) => dep.token ? stringifyType(dep.token) : '?').join(', ');
       const message =
           `Can't resolve all parameters for ${stringifyType(typeOrFunc)}: (${depsTokens}).`;
       if (throwOnUnknownDeps || this._config.strictInjectionParameters) {
@@ -1157,7 +1175,8 @@ export class CompileMetadataResolver {
       selectors,
       first: q.first,
       descendants: q.descendants, propertyName,
-      read: q.read ? this._getTokenMetadata(q.read) : null !
+      read: q.read ? this._getTokenMetadata(q.read) : null !,
+      static: q.static
     };
   }
 

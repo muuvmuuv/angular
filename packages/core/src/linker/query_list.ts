@@ -9,8 +9,12 @@
 import {Observable} from 'rxjs';
 
 import {EventEmitter} from '../event_emitter';
-import {getSymbolIterator} from '../util';
+import {flatten} from '../util/array_utils';
+import {getSymbolIterator} from '../util/symbol';
 
+function symbolIterator<T>(this: QueryList<T>): Iterator<T> {
+  return ((this as any as{_results: Array<T>})._results as any)[getSymbolIterator()]();
+}
 
 /**
  * An unmodifiable list of items that Angular keeps up to date when the state
@@ -48,6 +52,16 @@ export class QueryList<T>/* implements Iterable<T> */ {
   readonly first !: T;
   // TODO(issue/24571): remove '!'.
   readonly last !: T;
+
+  constructor() {
+    // This function should be declared on the prototype, but doing so there will cause the class
+    // declaration to have side-effects and become not tree-shakable. For this reason we do it in
+    // the constructor.
+    // [getSymbolIterator()](): Iterator<T> { ... }
+    const symbol = getSymbolIterator();
+    const proto = QueryList.prototype as any;
+    if (!proto[symbol]) proto[symbol] = symbolIterator;
+  }
 
   /**
    * See
@@ -93,20 +107,31 @@ export class QueryList<T>/* implements Iterable<T> */ {
     return this._results.some(fn);
   }
 
+  /**
+   * Returns a copy of the internal results list as an Array.
+   */
   toArray(): T[] { return this._results.slice(); }
-
-  [getSymbolIterator()](): Iterator<T> { return (this._results as any)[getSymbolIterator()](); }
 
   toString(): string { return this._results.toString(); }
 
-  reset(res: Array<T|any[]>): void {
-    this._results = flatten(res);
+  /**
+   * Updates the stored data of the query list, and resets the `dirty` flag to `false`, so that
+   * on change detection, it will not notify of changes to the queries, unless a new change
+   * occurs.
+   *
+   * @param resultsTree The query results to store
+   */
+  reset(resultsTree: Array<T|any[]>): void {
+    this._results = flatten(resultsTree);
     (this as{dirty: boolean}).dirty = false;
     (this as{length: number}).length = this._results.length;
     (this as{last: T}).last = this._results[this.length - 1];
     (this as{first: T}).first = this._results[0];
   }
 
+  /**
+   * Triggers a change event by emitting on the `changes` {@link EventEmitter}.
+   */
   notifyOnChanges(): void { (this.changes as EventEmitter<any>).emit(this); }
 
   /** internal */
@@ -117,11 +142,4 @@ export class QueryList<T>/* implements Iterable<T> */ {
     (this.changes as EventEmitter<any>).complete();
     (this.changes as EventEmitter<any>).unsubscribe();
   }
-}
-
-function flatten<T>(list: Array<T|T[]>): T[] {
-  return list.reduce((flat: any[], item: T | T[]): T[] => {
-    const flatItem = Array.isArray(item) ? flatten(item) : item;
-    return (<T[]>flat).concat(flatItem);
-  }, []);
 }

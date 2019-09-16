@@ -10,7 +10,7 @@ import {ResourceLoader} from '@angular/compiler';
 import {Compiler, Component, NgModule} from '@angular/core';
 import {TestBed, async, fakeAsync, inject, tick} from '@angular/core/testing';
 
-import {ResourceLoaderImpl} from '../src/resource_loader/resource_loader_impl';
+import {ResourceLoaderImpl} from '@angular/platform-browser-dynamic/src/resource_loader/resource_loader_impl';
 
 
 
@@ -88,7 +88,7 @@ if (isBrowser) {
         TestBed.configureTestingModule({
           imports: [TestModule],
         });
-        const compiler = TestBed.get(Compiler) as Compiler;
+        const compiler = TestBed.inject(Compiler);
         expect(compiler.getModuleId(TestModule)).toBe('test-module');
       });
     });
@@ -143,9 +143,8 @@ if (isBrowser) {
              expect(componentFixture.nativeElement.textContent).toEqual('from external template');
            });
          }),
-         10000);  // Long timeout here because this test makes an actual ResourceLoader request, and
-                  // is slow
-                  // on Edge.
+         10000);  // Long timeout here because this test makes an actual ResourceLoader
+                  // request, and is slow on Edge.
     });
   });
 }

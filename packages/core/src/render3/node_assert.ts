@@ -6,7 +6,7 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {assertDefined, assertEqual} from './assert';
+import {assertDefined, assertEqual} from '../util/assert';
 import {TNode, TNodeType} from './interfaces/node';
 
 export function assertNodeType(tNode: TNode, type: TNodeType) {
@@ -25,6 +25,7 @@ export function assertNodeOfPossibleTypes(tNode: TNode, ...types: TNodeType[]) {
 function typeName(type: TNodeType): string {
   if (type == TNodeType.Projection) return 'Projection';
   if (type == TNodeType.Container) return 'Container';
+  if (type == TNodeType.IcuContainer) return 'IcuContainer';
   if (type == TNodeType.View) return 'View';
   if (type == TNodeType.Element) return 'Element';
   if (type == TNodeType.ElementContainer) return 'ElementContainer';

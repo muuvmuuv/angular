@@ -6,12 +6,13 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {isInBazel, setup} from '@angular/compiler-cli/test/test_support';
+import {CompileNgModuleMetadata, NgAnalyzedModules} from '@angular/compiler';
+import {setup} from '@angular/compiler-cli/test/test_support';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as ts from 'typescript';
 
-import {Diagnostic, DiagnosticMessageChain, Diagnostics, Span} from '../src/types';
+import {Span} from '../src/types';
 
 export type MockData = string | MockDirectory;
 
@@ -65,31 +66,21 @@ missingCache.set('/node_modules/@angular/forms/src/directives/form_interface.met
 
 export class MockTypescriptHost implements ts.LanguageServiceHost {
   private angularPath: string|undefined;
-  // TODO(issue/24571): remove '!'.
-  private nodeModulesPath !: string;
+  private nodeModulesPath: string;
   private scriptVersion = new Map<string, number>();
   private overrides = new Map<string, string>();
   private projectVersion = 0;
   private options: ts.CompilerOptions;
   private overrideDirectory = new Set<string>();
+  private existsCache = new Map<string, boolean>();
+  private fileCache = new Map<string, string|undefined>();
 
   constructor(
       private scriptNames: string[], private data: MockData,
       private node_modules: string = 'node_modules', private myPath: typeof path = path) {
-    const moduleFilename = module.filename.replace(/\\/g, '/');
-    if (isInBazel()) {
-      const support = setup();
-      this.nodeModulesPath = path.join(support.basePath, 'node_modules');
-      this.angularPath = path.join(this.nodeModulesPath, '@angular');
-    } else {
-      const angularIndex = moduleFilename.indexOf('@angular');
-      if (angularIndex >= 0)
-        this.angularPath =
-            moduleFilename.substr(0, angularIndex).replace('/all/', '/all/@angular/');
-      const distIndex = moduleFilename.indexOf('/dist/all');
-      if (distIndex >= 0)
-        this.nodeModulesPath = myPath.join(moduleFilename.substr(0, distIndex), 'node_modules');
-    }
+    const support = setup();
+    this.nodeModulesPath = path.posix.join(support.basePath, 'node_modules');
+    this.angularPath = path.posix.join(this.nodeModulesPath, '@angular');
     this.options = {
       target: ts.ScriptTarget.ES5,
       module: ts.ModuleKind.CommonJS,
@@ -113,6 +104,7 @@ export class MockTypescriptHost implements ts.LanguageServiceHost {
     } else {
       this.overrides.delete(fileName);
     }
+    return content;
   }
 
   addScript(fileName: string, content: string) {
@@ -157,11 +149,13 @@ export class MockTypescriptHost implements ts.LanguageServiceHost {
     } else if (effectiveName == '/' + this.node_modules) {
       return true;
     } else {
-      return fs.existsSync(effectiveName);
+      return this.pathExists(effectiveName);
     }
   }
 
   fileExists(fileName: string): boolean { return this.getRawFileContent(fileName) != null; }
+
+  readFile(path: string): string|undefined { return this.getRawFileContent(path); }
 
   getMarkerLocations(fileName: string): {[name: string]: number}|undefined {
     let content = this.getRawFileContent(fileName);
@@ -195,14 +189,19 @@ export class MockTypescriptHost implements ts.LanguageServiceHost {
         cacheUsed.add(fileName);
         return undefined;
       }
-      let effectiveName = this.getEffectiveName(fileName);
-      if (effectiveName === fileName)
+
+      const effectiveName = this.getEffectiveName(fileName);
+      if (effectiveName === fileName) {
         return open(fileName, this.data);
-      else if (
+      } else if (
           !fileName.match(angularts) && !fileName.match(rxjsts) && !fileName.match(rxjsmetadata) &&
           !fileName.match(tsxfile)) {
-        if (fs.existsSync(effectiveName)) {
-          return fs.readFileSync(effectiveName, 'utf8');
+        if (this.fileCache.has(effectiveName)) {
+          return this.fileCache.get(effectiveName);
+        } else if (this.pathExists(effectiveName)) {
+          const content = fs.readFileSync(effectiveName, 'utf8');
+          this.fileCache.set(effectiveName, content);
+          return content;
         } else {
           missingCache.set(fileName, true);
           reportedMissing.add(fileName);
@@ -212,23 +211,105 @@ export class MockTypescriptHost implements ts.LanguageServiceHost {
     }
   }
 
+  private pathExists(path: string): boolean {
+    if (this.existsCache.has(path)) {
+      return this.existsCache.get(path) !;
+    }
+
+    const exists = fs.existsSync(path);
+    this.existsCache.set(path, exists);
+    return exists;
+  }
+
   private getEffectiveName(name: string): string {
     const node_modules = this.node_modules;
     const at_angular = '/@angular';
     if (name.startsWith('/' + node_modules)) {
       if (this.nodeModulesPath && !name.startsWith('/' + node_modules + at_angular)) {
-        let result = this.myPath.join(this.nodeModulesPath, name.substr(node_modules.length + 1));
-        if (!name.match(rxjsts))
-          if (fs.existsSync(result)) {
-            return result;
-          }
+        const result =
+            this.myPath.posix.join(this.nodeModulesPath, name.substr(node_modules.length + 1));
+        if (!name.match(rxjsts) && this.pathExists(result)) {
+          return result;
+        }
       }
       if (this.angularPath && name.startsWith('/' + node_modules + at_angular)) {
-        return this.myPath.join(
+        return this.myPath.posix.join(
             this.angularPath, name.substr(node_modules.length + at_angular.length + 1));
       }
     }
     return name;
+  }
+
+
+  /**
+   * Append a snippet of code to `app.component.ts` and return the file name.
+   * There must not be any name collision with existing code.
+   * @param code Snippet of code
+   */
+  addCode(code: string) {
+    const fileName = '/app/app.component.ts';
+    const originalContent = this.getFileContent(fileName);
+    const newContent = originalContent + code;
+    this.override(fileName, newContent);
+    return fileName;
+  }
+
+  /**
+   * Returns the definition marker ᐱselectorᐱ for the specified 'selector'.
+   * Asserts that marker exists.
+   * @param fileName name of the file
+   * @param selector name of the marker
+   */
+  getDefinitionMarkerFor(fileName: string, selector: string): ts.TextSpan {
+    const markers = this.getReferenceMarkers(fileName);
+    expect(markers).toBeDefined();
+    expect(Object.keys(markers !.definitions)).toContain(selector);
+    expect(markers !.definitions[selector].length).toBe(1);
+    const marker = markers !.definitions[selector][0];
+    expect(marker.start).toBeLessThanOrEqual(marker.end);
+    return {
+      start: marker.start,
+      length: marker.end - marker.start,
+    };
+  }
+
+  /**
+   * Returns the reference marker «selector» for the specified 'selector'.
+   * Asserts that marker exists.
+   * @param fileName name of the file
+   * @param selector name of the marker
+   */
+  getReferenceMarkerFor(fileName: string, selector: string): ts.TextSpan {
+    const markers = this.getReferenceMarkers(fileName);
+    expect(markers).toBeDefined();
+    expect(Object.keys(markers !.references)).toContain(selector);
+    expect(markers !.references[selector].length).toBe(1);
+    const marker = markers !.references[selector][0];
+    expect(marker.start).toBeLessThanOrEqual(marker.end);
+    return {
+      start: marker.start,
+      length: marker.end - marker.start,
+    };
+  }
+
+  /**
+   * Returns the location marker ~{selector} for the specified 'selector'.
+   * Asserts that marker exists.
+   * @param fileName name of the file
+   * @param selector name of the marker
+   */
+  getLocationMarkerFor(fileName: string, selector: string): ts.TextSpan {
+    const markers = this.getMarkerLocations(fileName);
+    expect(markers).toBeDefined();
+    const start = markers ![`start-${selector}`];
+    expect(start).toBeDefined();
+    const end = markers ![`end-${selector}`];
+    expect(end).toBeDefined();
+    expect(start).toBeLessThanOrEqual(end);
+    return {
+      start: start,
+      length: end - start,
+    };
   }
 }
 
@@ -287,9 +368,7 @@ function getLocationMarkers(value: string): {[name: string]: number} {
   return result;
 }
 
-const referenceMarker = /«(((\w|\-)+)|([^∆]*∆(\w+)∆.[^»]*))»/g;
-const definitionMarkerGroup = 1;
-const nameMarkerGroup = 2;
+const referenceMarker = /«(((\w|\-)+)|([^ᐱ]*ᐱ(\w+)ᐱ.[^»]*))»/g;
 
 export type ReferenceMarkers = {
   [name: string]: Span[]
@@ -309,7 +388,7 @@ function getReferenceMarkers(value: string): ReferenceResult {
   const text = value.replace(
       referenceMarker, (match: string, text: string, reference: string, _: string,
                         definition: string, definitionName: string, index: number): string => {
-        const result = reference ? text : text.replace(/∆/g, '');
+        const result = reference ? text : text.replace(/ᐱ/g, '');
         const span: Span = {start: index - adjustment, end: index - adjustment + result.length};
         const markers = reference ? references : definitions;
         const name = reference || definitionName;
@@ -322,54 +401,20 @@ function getReferenceMarkers(value: string): ReferenceResult {
 }
 
 function removeReferenceMarkers(value: string): string {
-  return value.replace(referenceMarker, (match, text) => text.replace(/∆/g, ''));
+  return value.replace(referenceMarker, (match, text) => text.replace(/ᐱ/g, ''));
 }
 
-export function noDiagnostics(diagnostics: Diagnostics) {
-  if (diagnostics && diagnostics.length) {
-    throw new Error(`Unexpected diagnostics: \n  ${diagnostics.map(d => d.message).join('\n  ')}`);
-  }
-}
-
-export function diagnosticMessageContains(
-    message: string | DiagnosticMessageChain, messageFragment: string): boolean {
-  if (typeof message == 'string') {
-    return message.indexOf(messageFragment) >= 0;
-  }
-  if (message.message.indexOf(messageFragment) >= 0) {
-    return true;
-  }
-  if (message.next) {
-    return diagnosticMessageContains(message.next, messageFragment);
-  }
-  return false;
-}
-
-export function findDiagnostic(diagnostics: Diagnostic[], messageFragment: string): Diagnostic|
-    undefined {
-  return diagnostics.find(d => diagnosticMessageContains(d.message, messageFragment));
-}
-
-export function includeDiagnostic(
-    diagnostics: Diagnostics, message: string, text?: string, len?: string): void;
-export function includeDiagnostic(
-    diagnostics: Diagnostics, message: string, at?: number, len?: number): void;
-export function includeDiagnostic(diagnostics: Diagnostics, message: string, p1?: any, p2?: any) {
-  expect(diagnostics).toBeDefined();
-  if (diagnostics) {
-    const diagnostic = findDiagnostic(diagnostics, message);
-    expect(diagnostic).toBeDefined(`no diagnostic contains '${message}`);
-    if (diagnostic && p1 != null) {
-      const at = typeof p1 === 'number' ? p1 : p2.indexOf(p1);
-      const len = typeof p2 === 'number' ? p2 : p1.length;
-      expect(diagnostic.span.start)
-          .toEqual(
-              at,
-              `expected message '${message}' was reported at ${diagnostic.span.start} but should be ${at}`);
-      if (len != null) {
-        expect(diagnostic.span.end - diagnostic.span.start)
-            .toEqual(len, `expected '${message}'s span length to be ${len}`);
-      }
+/**
+ * Find the StaticSymbol that has the specified `directiveName` and return its
+ * Angular metadata, if any.
+ * @param ngModules analyzed modules
+ * @param directiveName
+ */
+export function findDirectiveMetadataByName(
+    ngModules: NgAnalyzedModules, directiveName: string): CompileNgModuleMetadata|undefined {
+  for (const [key, value] of ngModules.ngModuleByPipeOrDirective) {
+    if (key.name === directiveName) {
+      return value;
     }
   }
 }

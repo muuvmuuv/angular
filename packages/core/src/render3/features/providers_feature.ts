@@ -5,7 +5,7 @@
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
-import {Provider} from '../../di/provider';
+import {ProcessProvidersFunction, Provider} from '../../di/interface/provider';
 import {providersResolver} from '../di_setup';
 import {DirectiveDef} from '../interfaces/definition';
 
@@ -14,6 +14,7 @@ import {DirectiveDef} from '../interfaces/definition';
  * and publish them into the DI system, making it visible to others for injection.
  *
  * For example:
+ * ```ts
  * class ComponentWithProviders {
  *   constructor(private greeter: GreeterDE) {}
  *
@@ -25,21 +26,29 @@ import {DirectiveDef} from '../interfaces/definition';
  *    vars: 1,
  *    template: function(fs: RenderFlags, ctx: ComponentWithProviders) {
  *      if (fs & RenderFlags.Create) {
- *        text(0);
+ *        ɵɵtext(0);
  *      }
  *      if (fs & RenderFlags.Update) {
- *        textBinding(0, bind(ctx.greeter.greet()));
+ *        ɵɵtextInterpolate(ctx.greeter.greet());
  *      }
  *    },
  *    features: [ProvidersFeature([GreeterDE])]
  *  });
  * }
+ * ```
  *
  * @param definition
+ *
+ * @codeGenApi
  */
-export function ProvidersFeature<T>(providers: Provider[], viewProviders: Provider[] = []) {
+export function ɵɵProvidersFeature<T>(providers: Provider[], viewProviders: Provider[] = []) {
   return (definition: DirectiveDef<T>) => {
-    definition.providersResolver = (def: DirectiveDef<T>) =>
-        providersResolver(def, providers, viewProviders);
+    definition.providersResolver =
+        (def: DirectiveDef<T>, processProvidersFn?: ProcessProvidersFunction) => {
+          return providersResolver(
+              def,                                                             //
+              processProvidersFn ? processProvidersFn(providers) : providers,  //
+              viewProviders);
+        };
   };
 }

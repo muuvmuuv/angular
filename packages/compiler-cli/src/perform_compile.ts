@@ -6,16 +6,12 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {Position, isSyntaxError, syntaxError} from '@angular/compiler';
-import * as fs from 'fs';
-import * as path from 'path';
+import {Position, isSyntaxError} from '@angular/compiler';
 import * as ts from 'typescript';
-
+import {AbsoluteFsPath, absoluteFrom, getFileSystem, relative, resolve} from '../src/ngtsc/file_system';
 import * as api from './transformers/api';
 import * as ng from './transformers/entry_points';
 import {createMessageDiagnostic} from './transformers/util';
-
-const TS_EXT = /\.ts$/;
 
 export type Diagnostics = ReadonlyArray<ts.Diagnostic|api.Diagnostic>;
 
@@ -30,7 +26,8 @@ const defaultFormatHost: ts.FormatDiagnosticsHost = {
 };
 
 function displayFileName(fileName: string, host: ts.FormatDiagnosticsHost): string {
-  return path.relative(host.getCurrentDirectory(), host.getCanonicalFileName(fileName));
+  return relative(
+      resolve(host.getCurrentDirectory()), resolve(host.getCanonicalFileName(fileName)));
 }
 
 export function formatDiagnosticPosition(
@@ -75,11 +72,11 @@ export function formatDiagnostic(
     result += `${formatDiagnosticPosition(diagnostic.position, host)}: `;
   }
   if (diagnostic.span && diagnostic.span.details) {
-    result += `: ${diagnostic.span.details}, ${diagnostic.messageText}${newLine}`;
+    result += `${diagnostic.span.details}, ${diagnostic.messageText}${newLine}`;
   } else if (diagnostic.chain) {
     result += `${flattenDiagnosticMessageChain(diagnostic.chain, host)}.${newLine}`;
   } else {
-    result += `: ${diagnostic.messageText}${newLine}`;
+    result += `${diagnostic.messageText}${newLine}`;
   }
   return result;
 }
@@ -110,22 +107,30 @@ export interface ParsedConfiguration {
 }
 
 export function calcProjectFileAndBasePath(project: string):
-    {projectFile: string, basePath: string} {
-  const projectIsDir = fs.lstatSync(project).isDirectory();
-  const projectFile = projectIsDir ? path.join(project, 'tsconfig.json') : project;
-  const projectDir = projectIsDir ? project : path.dirname(project);
-  const basePath = path.resolve(process.cwd(), projectDir);
+    {projectFile: AbsoluteFsPath, basePath: AbsoluteFsPath} {
+  const fs = getFileSystem();
+  const absProject = fs.resolve(project);
+  const projectIsDir = fs.lstat(absProject).isDirectory();
+  const projectFile = projectIsDir ? fs.join(absProject, 'tsconfig.json') : absProject;
+  const projectDir = projectIsDir ? absProject : fs.dirname(absProject);
+  const basePath = fs.resolve(projectDir);
   return {projectFile, basePath};
 }
 
 export function createNgCompilerOptions(
     basePath: string, config: any, tsOptions: ts.CompilerOptions): api.CompilerOptions {
-  return {...tsOptions, ...config.angularCompilerOptions, genDir: basePath, basePath};
+  // enableIvy `ngtsc` is an alias for `true`.
+  const {angularCompilerOptions = {}} = config;
+  const {enableIvy} = angularCompilerOptions;
+  angularCompilerOptions.enableIvy = enableIvy !== false && enableIvy !== 'tsc';
+
+  return {...tsOptions, ...angularCompilerOptions, genDir: basePath, basePath};
 }
 
 export function readConfiguration(
     project: string, existingOptions?: ts.CompilerOptions): ParsedConfiguration {
   try {
+    const fs = getFileSystem();
     const {projectFile, basePath} = calcProjectFileAndBasePath(project);
 
     const readExtendedConfigFile =
@@ -145,11 +150,12 @@ export function readConfiguration(
           }
 
           if (config.extends) {
-            let extendedConfigPath = path.resolve(path.dirname(configFile), config.extends);
-            extendedConfigPath = path.extname(extendedConfigPath) ? extendedConfigPath :
-                                                                    `${extendedConfigPath}.json`;
+            let extendedConfigPath = fs.resolve(fs.dirname(configFile), config.extends);
+            extendedConfigPath = fs.extname(extendedConfigPath) ?
+                extendedConfigPath :
+                absoluteFrom(`${extendedConfigPath}.json`);
 
-            if (fs.existsSync(extendedConfigPath)) {
+            if (fs.exists(extendedConfigPath)) {
               // Call read config recursively as TypeScript only merges CompilerOptions
               return readExtendedConfigFile(extendedConfigPath, baseConfig);
             }
@@ -171,13 +177,14 @@ export function readConfiguration(
     }
     const parseConfigHost = {
       useCaseSensitiveFileNames: true,
-      fileExists: fs.existsSync,
+      fileExists: fs.exists.bind(fs),
       readDirectory: ts.sys.readDirectory,
       readFile: ts.sys.readFile
     };
-    const parsed =
-        ts.parseJsonConfigFileContent(config, parseConfigHost, basePath, existingOptions);
-    const rootNames = parsed.fileNames.map(f => path.normalize(f));
+    const configFileName = fs.resolve(fs.pwd(), projectFile);
+    const parsed = ts.parseJsonConfigFileContent(
+        config, parseConfigHost, basePath, existingOptions, configFileName);
+    const rootNames = parsed.fileNames;
 
     const options = createNgCompilerOptions(basePath, config, parsed.options);
     let emitFlags = api.EmitFlags.Default;
@@ -215,26 +222,30 @@ export function exitCodeFromResult(diags: Diagnostics | undefined): number {
   return diags.some(d => d.source === 'angular' && d.code === api.UNKNOWN_ERROR_CODE) ? 2 : 1;
 }
 
-export function performCompilation({rootNames, options, host, oldProgram, emitCallback,
-                                    mergeEmitResultsCallback,
-                                    gatherDiagnostics = defaultGatherDiagnostics,
-                                    customTransformers, emitFlags = api.EmitFlags.Default}: {
-  rootNames: string[],
-  options: api.CompilerOptions,
-  host?: api.CompilerHost,
-  oldProgram?: api.Program,
-  emitCallback?: api.TsEmitCallback,
-  mergeEmitResultsCallback?: api.TsMergeEmitResultsCallback,
-  gatherDiagnostics?: (program: api.Program) => Diagnostics,
-  customTransformers?: api.CustomTransformers,
-  emitFlags?: api.EmitFlags
-}): PerformCompilationResult {
+export function performCompilation(
+    {rootNames, options, host, oldProgram, emitCallback, mergeEmitResultsCallback,
+     gatherDiagnostics = defaultGatherDiagnostics, customTransformers,
+     emitFlags = api.EmitFlags.Default, modifiedResourceFiles = null}: {
+      rootNames: string[],
+      options: api.CompilerOptions,
+      host?: api.CompilerHost,
+      oldProgram?: api.Program,
+      emitCallback?: api.TsEmitCallback,
+      mergeEmitResultsCallback?: api.TsMergeEmitResultsCallback,
+      gatherDiagnostics?: (program: api.Program) => Diagnostics,
+      customTransformers?: api.CustomTransformers,
+      emitFlags?: api.EmitFlags,
+      modifiedResourceFiles?: Set<string>| null,
+    }): PerformCompilationResult {
   let program: api.Program|undefined;
   let emitResult: ts.EmitResult|undefined;
   let allDiagnostics: Array<ts.Diagnostic|api.Diagnostic> = [];
   try {
     if (!host) {
       host = ng.createCompilerHost({options});
+    }
+    if (modifiedResourceFiles) {
+      host.getModifiedResourceFiles = () => modifiedResourceFiles;
     }
 
     program = ng.createProgram({rootNames, host, options, oldProgram});
@@ -272,7 +283,7 @@ export function performCompilation({rootNames, options, host, oldProgram, emitCa
     return {diagnostics: allDiagnostics, program};
   }
 }
-function defaultGatherDiagnostics(program: api.Program): Diagnostics {
+export function defaultGatherDiagnostics(program: api.Program): Diagnostics {
   const allDiagnostics: Array<ts.Diagnostic|api.Diagnostic> = [];
 
   function checkDiagnostics(diags: Diagnostics | undefined) {

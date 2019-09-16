@@ -47,7 +47,9 @@ aio-shell.page-resources mat-toolbar.mat-toolbar {
 
 // DOCS PAGES OVERRIDE: HAMBURGER
 aio-shell.folder-api mat-toolbar.mat-toolbar,
+aio-shell.folder-cli mat-toolbar.mat-toolbar,
 aio-shell.folder-docs mat-toolbar.mat-toolbar,
+aio-shell.folder-getting-started mat-toolbar.mat-toolbar,
 aio-shell.folder-guide mat-toolbar.mat-toolbar,
 aio-shell.folder-tutorial mat-toolbar.mat-toolbar {
   @media (min-width: 992px) {
@@ -178,7 +180,7 @@ aio-search-box.search-container {
     color: $darkgray;
     border: none;
     border-radius: 100px;
-    background-color: $offwhite;
+    background-color: $white;
     padding: 5px 16px;
     margin-left: 8px;
     width: 180px;
@@ -188,6 +190,11 @@ aio-search-box.search-container {
 
     &:focus {
       outline: none;
+    }
+
+    @include placeholder {
+      @include font-size(14);
+      color: $mediumgray;
     }
 
     @include bp(big) {

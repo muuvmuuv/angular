@@ -6,17 +6,19 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {LiteralExpr, R3PipeMetadata, Statement, WrappedNodeExpr, compilePipeFromMetadata} from '@angular/compiler';
+import {R3PipeMetadata, Statement, WrappedNodeExpr, compilePipeFromMetadata} from '@angular/compiler';
 import * as ts from 'typescript';
 
 import {ErrorCode, FatalDiagnosticError} from '../../diagnostics';
-import {Decorator, ReflectionHost} from '../../host';
-import {reflectObjectLiteral, staticallyResolve} from '../../metadata';
-import {AnalysisOutput, CompileResult, DecoratorHandler} from '../../transform';
+import {DefaultImportRecorder, Reference} from '../../imports';
+import {MetadataRegistry} from '../../metadata';
+import {PartialEvaluator} from '../../partial_evaluator';
+import {ClassDeclaration, Decorator, ReflectionHost, reflectObjectLiteral} from '../../reflection';
+import {AnalysisOutput, CompileResult, DecoratorHandler, DetectResult, HandlerPrecedence} from '../../transform';
 
+import {compileNgFactoryDefField} from './factory';
 import {generateSetClassMetadataCall} from './metadata';
-import {SelectorScopeRegistry} from './selector_scope';
-import {getConstructorDependencies, isAngularCore, unwrapExpression} from './util';
+import {findAngularDecorator, getValidConstructorDependencies, unwrapExpression} from './util';
 
 export interface PipeHandlerData {
   meta: R3PipeMetadata;
@@ -25,22 +27,28 @@ export interface PipeHandlerData {
 
 export class PipeDecoratorHandler implements DecoratorHandler<PipeHandlerData, Decorator> {
   constructor(
-      private checker: ts.TypeChecker, private reflector: ReflectionHost,
-      private scopeRegistry: SelectorScopeRegistry, private isCore: boolean) {}
+      private reflector: ReflectionHost, private evaluator: PartialEvaluator,
+      private metaRegistry: MetadataRegistry, private defaultImportRecorder: DefaultImportRecorder,
+      private isCore: boolean) {}
 
-  detect(node: ts.Declaration, decorators: Decorator[]|null): Decorator|undefined {
+  readonly precedence = HandlerPrecedence.PRIMARY;
+
+  detect(node: ClassDeclaration, decorators: Decorator[]|null): DetectResult<Decorator>|undefined {
     if (!decorators) {
       return undefined;
     }
-    return decorators.find(
-        decorator => decorator.name === 'Pipe' && (this.isCore || isAngularCore(decorator)));
+    const decorator = findAngularDecorator(decorators, 'Pipe', this.isCore);
+    if (decorator !== undefined) {
+      return {
+        trigger: decorator.node,
+        metadata: decorator,
+      };
+    } else {
+      return undefined;
+    }
   }
 
-  analyze(clazz: ts.ClassDeclaration, decorator: Decorator): AnalysisOutput<PipeHandlerData> {
-    if (clazz.name === undefined) {
-      throw new FatalDiagnosticError(
-          ErrorCode.DECORATOR_ON_ANONYMOUS_CLASS, clazz, `@Pipes must have names`);
-    }
+  analyze(clazz: ClassDeclaration, decorator: Decorator): AnalysisOutput<PipeHandlerData> {
     const name = clazz.name.text;
     const type = new WrappedNodeExpr(clazz.name);
     if (decorator.args === null) {
@@ -63,17 +71,18 @@ export class PipeDecoratorHandler implements DecoratorHandler<PipeHandlerData, D
           ErrorCode.PIPE_MISSING_NAME, meta, `@Pipe decorator is missing name field`);
     }
     const pipeNameExpr = pipe.get('name') !;
-    const pipeName = staticallyResolve(pipeNameExpr, this.reflector, this.checker);
+    const pipeName = this.evaluator.evaluate(pipeNameExpr);
     if (typeof pipeName !== 'string') {
       throw new FatalDiagnosticError(
           ErrorCode.VALUE_HAS_WRONG_TYPE, pipeNameExpr, `@Pipe.name must be a string`);
     }
-    this.scopeRegistry.registerPipe(clazz, pipeName);
+    const ref = new Reference(clazz);
+    this.metaRegistry.registerPipeMetadata({ref, name: pipeName});
 
     let pure = true;
     if (pipe.has('pure')) {
       const expr = pipe.get('pure') !;
-      const pureValue = staticallyResolve(expr, this.reflector, this.checker);
+      const pureValue = this.evaluator.evaluate(expr);
       if (typeof pureValue !== 'boolean') {
         throw new FatalDiagnosticError(
             ErrorCode.VALUE_HAS_WRONG_TYPE, expr, `@Pipe.pure must be a boolean`);
@@ -86,24 +95,31 @@ export class PipeDecoratorHandler implements DecoratorHandler<PipeHandlerData, D
         meta: {
           name,
           type,
-          pipeName,
-          deps: getConstructorDependencies(clazz, this.reflector, this.isCore), pure,
+          typeArgumentCount: this.reflector.getGenericArityOfClass(clazz) || 0, pipeName,
+          deps: getValidConstructorDependencies(
+              clazz, this.reflector, this.defaultImportRecorder, this.isCore),
+          pure,
         },
-        metadataStmt: generateSetClassMetadataCall(clazz, this.reflector, this.isCore),
+        metadataStmt: generateSetClassMetadataCall(
+            clazz, this.reflector, this.defaultImportRecorder, this.isCore),
       },
     };
   }
 
-  compile(node: ts.ClassDeclaration, analysis: PipeHandlerData): CompileResult {
-    const res = compilePipeFromMetadata(analysis.meta);
-    const statements = res.statements;
+  compile(node: ClassDeclaration, analysis: PipeHandlerData): CompileResult[] {
+    const meta = analysis.meta;
+    const res = compilePipeFromMetadata(meta);
+    const factoryRes = compileNgFactoryDefField({...meta, isPipe: true});
     if (analysis.metadataStmt !== null) {
-      statements.push(analysis.metadataStmt);
+      factoryRes.statements.push(analysis.metadataStmt);
     }
-    return {
-      name: 'ngPipeDef',
-      initializer: res.expression, statements,
-      type: res.type,
-    };
+    return [
+      factoryRes, {
+        name: 'ngPipeDef',
+        initializer: res.expression,
+        statements: [],
+        type: res.type,
+      }
+    ];
   }
 }

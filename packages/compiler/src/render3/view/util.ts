@@ -7,11 +7,25 @@
  */
 
 import {ConstantPool} from '../../constant_pool';
+import {Interpolation} from '../../expression_parser/ast';
 import * as o from '../../output/output_ast';
+import {ParseSourceSpan} from '../../parse_util';
 import {splitAtColon} from '../../util';
 import * as t from '../r3_ast';
+
 import {R3QueryMetadata} from './api';
 import {isI18nAttribute} from './i18n/util';
+
+
+/**
+ * Checks whether an object key contains potentially unsafe chars, thus the key should be wrapped in
+ * quotes. Note: we do not wrap all keys into quotes, as it may have impact on minification and may
+ * bot work in some cases when object keys are mangled by minifier.
+ *
+ * TODO(FW-1136): this is a temporary solution, we need to come up with a better way of working with
+ * inputs that contain potentially unsafe chars.
+ */
+const UNSAFE_OBJECT_KEY_NAME_REGEXP = /[-.]/;
 
 /** Name of the temporary to use during data binding */
 export const TEMPORARY_NAME = '_t';
@@ -48,16 +62,16 @@ export function temporaryAllocator(statements: o.Statement[], name: string): () 
 }
 
 
-export function unsupported(feature: string): never {
+export function unsupported(this: void|Function, feature: string): never {
   if (this) {
     throw new Error(`Builder ${this.constructor.name} doesn't support ${feature} yet`);
   }
   throw new Error(`Feature ${feature} is not supported yet`);
 }
 
-export function invalid<T>(arg: o.Expression | o.Statement | t.Node): never {
+export function invalid<T>(this: t.Visitor, arg: o.Expression | o.Statement | t.Node): never {
   throw new Error(
-      `Invalid state: Visitor ${this.constructor.name} doesn't handle ${o.constructor.name}`);
+      `Invalid state: Visitor ${this.constructor.name} doesn't handle ${arg.constructor.name}`);
 }
 
 export function asLiteral(value: any): o.Expression {
@@ -92,7 +106,8 @@ function mapToExpression(
     minifiedName = declaredName;
     return {
       key: minifiedName,
-      quoted: false,
+      // put quotes around keys that contain potentially unsafe characters
+      quoted: UNSAFE_OBJECT_KEY_NAME_REGEXP.test(minifiedName),
       value: (keepDeclared && publicName !== declaredName) ?
           o.literalArr([asLiteral(publicName), asLiteral(declaredName)]) :
           asLiteral(publicName)
@@ -154,13 +169,53 @@ export function getAttrsForDirectiveMatching(elOrTpl: t.Element | t.Template):
     {[name: string]: string} {
   const attributesMap: {[name: string]: string} = {};
 
-  elOrTpl.attributes.forEach(a => {
-    if (!isI18nAttribute(a.name)) {
-      attributesMap[a.name] = a.value;
-    }
-  });
-  elOrTpl.inputs.forEach(i => { attributesMap[i.name] = ''; });
-  elOrTpl.outputs.forEach(o => { attributesMap[o.name] = ''; });
+
+  if (elOrTpl instanceof t.Template && elOrTpl.tagName !== 'ng-template') {
+    elOrTpl.templateAttrs.forEach(a => attributesMap[a.name] = '');
+  } else {
+    elOrTpl.attributes.forEach(a => {
+      if (!isI18nAttribute(a.name)) {
+        attributesMap[a.name] = a.value;
+      }
+    });
+
+    elOrTpl.inputs.forEach(i => { attributesMap[i.name] = ''; });
+    elOrTpl.outputs.forEach(o => { attributesMap[o.name] = ''; });
+  }
 
   return attributesMap;
+}
+
+/** Returns a call expression to a chained instruction, e.g. `property(params[0])(params[1])`. */
+export function chainedInstruction(
+    reference: o.ExternalReference, calls: o.Expression[][], span?: ParseSourceSpan | null) {
+  let expression = o.importExpr(reference, null, span) as o.Expression;
+
+  if (calls.length > 0) {
+    for (let i = 0; i < calls.length; i++) {
+      expression = expression.callFn(calls[i], span);
+    }
+  } else {
+    // Add a blank invocation, in case the `calls` array is empty.
+    expression = expression.callFn([], span);
+  }
+
+  return expression;
+}
+
+/**
+ * Gets the number of arguments expected to be passed to a generated instruction in the case of
+ * interpolation instructions.
+ * @param interpolation An interpolation ast
+ */
+export function getInterpolationArgsLength(interpolation: Interpolation) {
+  const {expressions, strings} = interpolation;
+  if (expressions.length === 1 && strings.length === 2 && strings[0] === '' && strings[1] === '') {
+    // If the interpolation has one interpolated value, but the prefix and suffix are both empty
+    // strings, we only pass one argument, to a special instruction like `propertyInterpolate` or
+    // `textInterpolate`.
+    return 1;
+  } else {
+    return expressions.length + strings.length;
+  }
 }

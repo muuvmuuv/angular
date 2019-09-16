@@ -11,7 +11,6 @@ import {Component, Injectable, NgZone, RendererFactory2, RendererType2, ViewChil
 import {TestBed} from '@angular/core/testing';
 import {BrowserAnimationsModule, ɵAnimationRendererFactory as AnimationRendererFactory, ɵInjectableAnimationEngine as InjectableAnimationEngine} from '@angular/platform-browser/animations';
 import {DomRendererFactory2} from '@angular/platform-browser/src/dom/dom_renderer';
-import {fixmeIvy} from '@angular/private/testing';
 
 import {el} from '../../testing/src/browser_util';
 
@@ -35,13 +34,13 @@ import {el} from '../../testing/src/browser_util';
         styles: [],
         data: {'animation': animationTriggers}
       };
-      return (TestBed.get(RendererFactory2) as AnimationRendererFactory)
+      return (TestBed.inject(RendererFactory2) as AnimationRendererFactory)
           .createRenderer(element, type);
     }
 
     it('should hook into the engine\'s insert operations when appending children', () => {
       const renderer = makeRenderer();
-      const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+      const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
       const container = el('<div></div>');
 
       renderer.appendChild(container, element);
@@ -51,7 +50,7 @@ import {el} from '../../testing/src/browser_util';
     it('should hook into the engine\'s insert operations when inserting a child before another',
        () => {
          const renderer = makeRenderer();
-         const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+         const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
          const container = el('<div></div>');
          const element2 = el('<div></div>');
          container.appendChild(element2);
@@ -62,7 +61,7 @@ import {el} from '../../testing/src/browser_util';
 
     it('should hook into the engine\'s insert operations when removing children', () => {
       const renderer = makeRenderer();
-      const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+      const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
       const container = el('<div></div>');
 
       renderer.removeChild(container, element);
@@ -71,7 +70,7 @@ import {el} from '../../testing/src/browser_util';
 
     it('should hook into the engine\'s setProperty call if the property begins with `@`', () => {
       const renderer = makeRenderer();
-      const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+      const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
 
       renderer.setProperty(element, 'prop', 'value');
       expect(engine.captures['setProperty']).toBeFalsy();
@@ -83,7 +82,7 @@ import {el} from '../../testing/src/browser_util';
     describe('listen', () => {
       it('should hook into the engine\'s listen call if the property begins with `@`', () => {
         const renderer = makeRenderer();
-        const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+        const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
 
         const cb = (event: any): boolean => { return true; };
 
@@ -97,7 +96,7 @@ import {el} from '../../testing/src/browser_util';
       it('should resolve the body|document|window nodes given their values as strings as input',
          () => {
            const renderer = makeRenderer();
-           const engine = TestBed.get(AnimationEngine) as MockAnimationEngine;
+           const engine = TestBed.inject(AnimationEngine) as MockAnimationEngine;
 
            const cb = (event: any): boolean => { return true; };
 
@@ -141,7 +140,7 @@ import {el} from '../../testing/src/browser_util';
           declarations: [Cmp]
         });
 
-        const engine = TestBed.get(AnimationEngine);
+        const engine = TestBed.inject(AnimationEngine);
         const fixture = TestBed.createComponent(Cmp);
         const cmp = fixture.componentInstance;
         cmp.exp = 'state';
@@ -169,7 +168,7 @@ import {el} from '../../testing/src/browser_util';
            })
            class Cmp {
              exp: any;
-             @ViewChild('elm') public element: any;
+             @ViewChild('elm', {static: false}) public element: any;
            }
 
            TestBed.configureTestingModule({
@@ -214,11 +213,11 @@ import {el} from '../../testing/src/browser_util';
              exp2: any = true;
              exp3: any = true;
 
-             @ViewChild('elm1') public elm1: any;
+             @ViewChild('elm1', {static: false}) public elm1: any;
 
-             @ViewChild('elm2') public elm2: any;
+             @ViewChild('elm2', {static: false}) public elm2: any;
 
-             @ViewChild('elm3') public elm3: any;
+             @ViewChild('elm3', {static: false}) public elm3: any;
            }
 
            TestBed.configureTestingModule({
@@ -226,7 +225,7 @@ import {el} from '../../testing/src/browser_util';
              declarations: [Cmp]
            });
 
-           const engine = TestBed.get(AnimationEngine);
+           const engine = TestBed.inject(AnimationEngine);
            const fixture = TestBed.createComponent(Cmp);
            const cmp = fixture.componentInstance;
 
@@ -279,36 +278,35 @@ import {el} from '../../testing/src/browser_util';
       });
     });
 
-    fixmeIvy(`FW-802: Animation 'start' and 'end' hooks are invoked twice`)
-        .it('should provide hooks at the start and end of change detection', () => {
-          @Component({
-            selector: 'my-cmp',
-            template: `
+    it('should provide hooks at the start and end of change detection', () => {
+      @Component({
+        selector: 'my-cmp',
+        template: `
           <div [@myAnimation]="exp"></div>
         `,
-            animations: [trigger('myAnimation', [])]
-          })
-          class Cmp {
-            public exp: any;
-          }
+        animations: [trigger('myAnimation', [])]
+      })
+      class Cmp {
+        public exp: any;
+      }
 
-          TestBed.configureTestingModule({
-            providers: [{provide: AnimationEngine, useClass: InjectableAnimationEngine}],
-            declarations: [Cmp]
-          });
+      TestBed.configureTestingModule({
+        providers: [{provide: AnimationEngine, useClass: InjectableAnimationEngine}],
+        declarations: [Cmp]
+      });
 
-          const renderer = TestBed.get(RendererFactory2) as ExtendedAnimationRendererFactory;
-          const fixture = TestBed.createComponent(Cmp);
-          const cmp = fixture.componentInstance;
+      const renderer = TestBed.inject(RendererFactory2) as ExtendedAnimationRendererFactory;
+      const fixture = TestBed.createComponent(Cmp);
+      const cmp = fixture.componentInstance;
 
-          renderer.log = [];
-          fixture.detectChanges();
-          expect(renderer.log).toEqual(['begin', 'end']);
+      renderer.log = [];
+      fixture.detectChanges();
+      expect(renderer.log).toEqual(['begin', 'end']);
 
-          renderer.log = [];
-          fixture.detectChanges();
-          expect(renderer.log).toEqual(['begin', 'end']);
-        });
+      renderer.log = [];
+      fixture.detectChanges();
+      expect(renderer.log).toEqual(['begin', 'end']);
+    });
   });
 })();
 

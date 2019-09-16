@@ -7,8 +7,9 @@
  */
 
 import {InjectionToken} from '../../di/injection_token';
-import {InjectFlags} from '../../di/injector_compatibility';
-import {Type} from '../../type';
+import {InjectFlags} from '../../di/interface/injector';
+import {Type} from '../../interface/type';
+
 import {TElementNode} from './node';
 import {LView, TData} from './view';
 
@@ -131,7 +132,7 @@ export class NodeInjectorFactory {
   /**
    * The inject implementation to be activated when using the factory.
    */
-  injectImpl: null|(<T>(token: Type<T>|InjectionToken<T>, flags: InjectFlags) => T);
+  injectImpl: null|(<T>(token: Type<T>|InjectionToken<T>, flags?: InjectFlags) => T);
 
   /**
    * Marker set to true during factory invocation to see if we get into recursive loop.
@@ -215,7 +216,7 @@ export class NodeInjectorFactory {
        * Factory to invoke in order to create a new instance.
        */
       public factory:
-          (this: NodeInjectorFactory, _: null,
+          (this: NodeInjectorFactory, _: undefined,
            /**
             * array where injectables tokens are stored. This is used in
             * case of an error reporting to produce friendlier errors.
@@ -233,17 +234,17 @@ export class NodeInjectorFactory {
       /**
        * Set to `true` if the token is declared in `viewProviders` (or if it is component).
        */
-      isViewProvider: boolean,
-      injectImplementation: null|(<T>(token: Type<T>|InjectionToken<T>, flags: InjectFlags) => T)) {
+      isViewProvider: boolean, injectImplementation: null|
+      (<T>(token: Type<T>|InjectionToken<T>, flags?: InjectFlags) => T)) {
     this.canSeeViewProviders = isViewProvider;
     this.injectImpl = injectImplementation;
   }
 }
 
-const FactoryPrototype = NodeInjectorFactory.prototype;
 export function isFactory(obj: any): obj is NodeInjectorFactory {
   // See: https://jsperf.com/instanceof-vs-getprototypeof
-  return obj != null && typeof obj == 'object' && Object.getPrototypeOf(obj) == FactoryPrototype;
+  return obj !== null && typeof obj == 'object' &&
+      Object.getPrototypeOf(obj) == NodeInjectorFactory.prototype;
 }
 
 // Note: This hack is necessary so we don't erroneously get a circular dependency

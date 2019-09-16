@@ -1,0 +1,34 @@
+load("//tools:defaults.bzl", "ng_package", "ts_library")
+
+package(default_visibility = ["//visibility:public"])
+
+ts_library(
+    name = "localize",
+    srcs = glob(
+        [
+            "*.ts",
+            "src/**/*.ts",
+        ],
+    ),
+    module_name = "@angular/localize",
+    deps = [
+        "//packages/localize/src/localize",
+        "@npm//@types/node",
+    ],
+)
+
+ng_package(
+    name = "npm_package",
+    srcs = [
+        "package.json",
+        "//packages/localize/init:package.json",
+    ],
+    entry_point = ":index.ts",
+    tags = [
+        "release-with-framework",
+    ],
+    deps = [
+        ":localize",
+        "//packages/localize/init",
+    ],
+)

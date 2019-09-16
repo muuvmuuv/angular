@@ -6,43 +6,39 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import 'reflect-metadata';
 import * as ts from 'typescript';
 
 import {createLanguageService} from '../src/language_service';
-import {Completions} from '../src/types';
 import {TypeScriptServiceHost} from '../src/typescript_host';
 
 import {toh} from './test_data';
 import {MockTypescriptHost} from './test_utils';
 
 describe('completions', () => {
-  let documentRegistry = ts.createDocumentRegistry();
   let mockHost = new MockTypescriptHost(['/app/main.ts', '/app/parsing-cases.ts'], toh);
-  let service = ts.createLanguageService(mockHost, documentRegistry);
+  let service = ts.createLanguageService(mockHost);
   let ngHost = new TypeScriptServiceHost(mockHost, service);
   let ngService = createLanguageService(ngHost);
-  ngHost.setSite(ngService);
 
   it('should be able to get entity completions',
-     () => { contains('/app/test.ng', 'entity-amp', '&amp;', '&gt;', '&lt;', '&iota;'); });
+     () => { expectContains('/app/test.ng', 'entity-amp', '&amp;', '&gt;', '&lt;', '&iota;'); });
 
   it('should be able to return html elements', () => {
     let htmlTags = ['h1', 'h2', 'div', 'span'];
     let locations = ['empty', 'start-tag-h1', 'h1-content', 'start-tag', 'start-tag-after-h'];
     for (let location of locations) {
-      contains('/app/test.ng', location, ...htmlTags);
+      expectContains('/app/test.ng', location, ...htmlTags);
     }
   });
 
   it('should be able to return element diretives',
-     () => { contains('/app/test.ng', 'empty', 'my-app'); });
+     () => { expectContains('/app/test.ng', 'empty', 'my-app'); });
 
   it('should be able to return h1 attributes',
-     () => { contains('/app/test.ng', 'h1-after-space', 'id', 'dir', 'lang', 'onclick'); });
+     () => { expectContains('/app/test.ng', 'h1-after-space', 'id', 'dir', 'lang', 'onclick'); });
 
   it('should be able to find common angular attributes',
-     () => { contains('/app/test.ng', 'div-attributes', '(click)', '[ngClass]'); });
+     () => { expectContains('/app/test.ng', 'div-attributes', '(click)', '[ngClass]'); });
 
   it('should be able to get completions in some random garbage', () => {
     const fileName = '/app/test.ng';
@@ -52,8 +48,7 @@ describe('completions', () => {
   });
 
   it('should be able to infer the type of a ngForOf', () => {
-    addCode(
-        `
+    const fileName = mockHost.addCode(`
       interface Person {
         name: string,
         street: string
@@ -62,13 +57,12 @@ describe('completions', () => {
       @Component({template: '<div *ngFor="let person of people">{{person.~{name}name}}</div'})
       export class MyComponent {
         people: Person[]
-      }`,
-        () => { contains('/app/app.component.ts', 'name', 'name', 'street'); });
+      }`);
+    expectContains(fileName, 'name', 'name', 'street');
   });
 
   it('should be able to infer the type of a ngForOf with an async pipe', () => {
-    addCode(
-        `
+    const fileName = mockHost.addCode(`
       interface Person {
         name: string,
         street: string
@@ -77,8 +71,8 @@ describe('completions', () => {
       @Component({template: '<div *ngFor="let person of people | async">{{person.~{name}name}}</div'})
       export class MyComponent {
         people: Promise<Person[]>;
-      }`,
-        () => { contains('/app/app.component.ts', 'name', 'name', 'street'); });
+      }`);
+    expectContains(fileName, 'name', 'name', 'street');
   });
 
   it('should be able to complete every character in the file', () => {
@@ -86,12 +80,10 @@ describe('completions', () => {
 
     expect(() => {
       let chance = 0.05;
-      let requests = 0;
       function tryCompletionsAt(position: number) {
         try {
           if (Math.random() < chance) {
             ngService.getCompletionsAt(fileName, position);
-            requests++;
           }
         } catch (e) {
           // Emit enough diagnostic information to reproduce the error.
@@ -141,20 +133,22 @@ describe('completions', () => {
   describe('with regression tests', () => {
     it('should not crash with an incomplete component', () => {
       expect(() => {
-        const code = `
-@Component({
-  template: '~{inside-template}'
-})
-export class MyComponent {
+        const fileName = mockHost.addCode(`
+          @Component({
+            template: '~{inside-template}'
+          })
+          export class MyComponent {
+          
+          }`);
 
-}`;
-        addCode(code, fileName => { contains(fileName, 'inside-template', 'h1'); });
+        expectContains(fileName, 'inside-template', 'h1');
       }).not.toThrow();
     });
 
     it('should hot crash with an incomplete class', () => {
       expect(() => {
-        addCode('\nexport class', fileName => { ngHost.updateAnalyzedModules(); });
+        mockHost.addCode('\nexport class');
+        ngHost.getAnalyzedModules();
       }).not.toThrow();
     });
 
@@ -183,24 +177,29 @@ export class MyComponent {
         tree: Node;
       }
     `);
-    ngHost.updateAnalyzedModules();
-    contains('/app/my.component.ts', 'tree', 'children');
+    ngHost.getAnalyzedModules();
+    expectContains('/app/my.component.ts', 'tree', 'children');
   });
 
-  function addCode(code: string, cb: (fileName: string, content?: string) => void) {
-    const fileName = '/app/app.component.ts';
-    const originalContent = mockHost.getFileContent(fileName);
-    const newContent = originalContent + code;
-    mockHost.override(fileName, originalContent + code);
-    ngHost.updateAnalyzedModules();
-    try {
-      cb(fileName, newContent);
-    } finally {
-      mockHost.override(fileName, undefined !);
-    }
-  }
+  it('should work with input and output', () => {
+    const fileName = mockHost.addCode(`
+      @Component({
+        selector: 'foo-component',
+        template: \`
+          <div string-model ~{stringMarker}="text"></div>
+          <div number-model ~{numberMarker}="value"></div>
+        \`,
+      })
+      export class FooComponent {
+        text: string;
+        value: number;
+      }
+    `);
+    expectContains(fileName, 'stringMarker', '[model]', '(model)');
+    expectContains(fileName, 'numberMarker', '[inputAlias]', '(outputAlias)');
+  });
 
-  function contains(fileName: string, locationMarker: string, ...names: string[]) {
+  function expectContains(fileName: string, locationMarker: string, ...names: string[]) {
     let location = mockHost.getMarkerLocations(fileName) ![locationMarker];
     if (location == null) {
       throw new Error(`No marker ${locationMarker} found.`);
@@ -210,24 +209,24 @@ export class MyComponent {
 });
 
 
-function expectEntries(locationMarker: string, completions: Completions, ...names: string[]) {
+function expectEntries(
+    locationMarker: string, completion: ts.CompletionInfo | undefined, ...names: string[]) {
   let entries: {[name: string]: boolean} = {};
-  if (!completions) {
+  if (!completion) {
     throw new Error(
         `Expected result from ${locationMarker} to include ${names.join(', ')} but no result provided`);
   }
-  if (!completions.length) {
+  if (!completion.entries.length) {
     throw new Error(
         `Expected result from ${locationMarker} to include ${names.join(', ')} an empty result provided`);
-  } else {
-    for (let entry of completions) {
-      entries[entry.name] = true;
-    }
-    let missing = names.filter(name => !entries[name]);
-    if (missing.length) {
-      throw new Error(
-          `Expected result from ${locationMarker} to include at least one of the following, ${missing.join(', ')}, in the list of entries ${completions.map(entry => entry.name).join(', ')}`);
-    }
+  }
+  for (const entry of completion.entries) {
+    entries[entry.name] = true;
+  }
+  let missing = names.filter(name => !entries[name]);
+  if (missing.length) {
+    throw new Error(
+        `Expected result from ${locationMarker} to include at least one of the following, ${missing.join(', ')}, in the list of entries ${completion.entries.map(entry => entry.name).join(', ')}`);
   }
 }
 
@@ -256,8 +255,9 @@ function buildUp(originalText: string, cb: (text: string, position: number) => v
     inString[index] = true;
     unused.splice(unusedIndex, 1);
     let text = getText();
-    let position =
-        inString.filter((_, i) => i <= index).map(v => v ? 1 : 0).reduce((p, v) => p + v, 0);
+    let position = inString.filter((_, i) => i <= index)
+                       .map(v => v ? 1 : 0)
+                       .reduce((p: number, v) => p + v, 0);
     cb(text, position);
   }
 }

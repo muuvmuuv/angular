@@ -7,8 +7,8 @@
  */
 
 import {AST} from '../../expression_parser/ast';
-
 import {BoundAttribute, BoundEvent, Element, Node, Reference, Template, TextAttribute, Variable} from '../r3_ast';
+
 
 /*
  * t2 is the replacement for the `TemplateDefinitionBuilder`. It handles the operations of
@@ -58,7 +58,7 @@ export interface DirectiveMeta {
    *
    * Null otherwise
    */
-  exportAs: string|null;
+  exportAs: string[]|null;
 }
 
 /**
@@ -136,4 +136,9 @@ export interface BoundTarget<DirectiveT extends DirectiveMeta> {
    * Get a list of all the directives used by the target.
    */
   getUsedDirectives(): DirectiveT[];
+
+  /**
+   * Get a list of all the pipes used by the target.
+   */
+  getUsedPipes(): string[];
 }

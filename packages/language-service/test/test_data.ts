@@ -6,8 +6,6 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {MockData} from './test_utils';
-
 export const toh = {
   'foo.ts': `export * from './app/app.component.ts';`,
   app: {
@@ -44,7 +42,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AppComponent }   from './app.component';
 import { CaseIncompleteOpen, CaseMissingClosing, CaseUnknown, Pipes, TemplateReference, NoValueAttribute,
-         AttributeBinding, StringModel,PropertyBinding, EventBinding, TwoWayBinding, EmptyInterpolation,
+         AttributeBinding, StringModel, NumberModel, PropertyBinding, EventBinding, TwoWayBinding, EmptyInterpolation,
          ForOfEmpty, ForLetIEqual, ForOfLetEmpty, ForUsingComponent, References, TestComponent} from './parsing-cases';
 import { WrongFieldReference, WrongSubFieldReference, PrivateReference, ExpectNumericType, LowercasePipe } from './expression-cases';
 import { UnknownPeople, UnknownEven, UnknownTrackBy } from './ng-for-cases';
@@ -53,7 +51,7 @@ import { ShowIf } from './ng-if-cases';
 @NgModule({
   imports: [CommonModule, FormsModule],
   declarations: [AppComponent, CaseIncompleteOpen, CaseMissingClosing, CaseUnknown, Pipes, TemplateReference, NoValueAttribute,
-    AttributeBinding, StringModel, PropertyBinding, EventBinding, TwoWayBinding, EmptyInterpolation, ForOfEmpty, ForOfLetEmpty,
+    AttributeBinding, StringModel, NumberModel, PropertyBinding, EventBinding, TwoWayBinding, EmptyInterpolation, ForOfEmpty, ForOfLetEmpty,
     ForLetIEqual, ForUsingComponent, References, TestComponent, WrongFieldReference, WrongSubFieldReference, PrivateReference,
     ExpectNumericType, UnknownPeople, UnknownEven, UnknownTrackBy, ShowIf, LowercasePipe]
 })
@@ -113,6 +111,12 @@ export class StringModel {
   @Output() modelChanged: EventEmitter<string>;
 }
 
+@Directive({selector: '[number-model]'})
+export class NumberModel {
+  @Input('inputAlias') model: number;
+  @Output('outputAlias') modelChanged: EventEmitter<number>;
+}
+
 interface Person {
   name: string;
   age: number
@@ -135,11 +139,11 @@ export class ForUsingComponent {
 @Component({template: '<div #div> <test-comp #test1> {{~{test-comp-content}}} {{test1.~{test-comp-after-test}name}} {{div.~{test-comp-after-div}.innerText}} </test-comp> </div> <test-comp #test2></test-comp>'})
 export class References {}
 
-@Component({selector: 'test-comp', template: '<div>Testing: {{name}}</div>'})
+~{start-test-comp}@Component({selector: 'test-comp', template: '<div>Testing: {{name}}</div>'})
 export class TestComponent {
-  «@Input('∆tcName∆') name = 'test';»
-  «@Output('∆test∆') testEvent = new EventEmitter();»
-}
+  «@Input('ᐱtcNameᐱ') name = 'test';»
+  «@Output('ᐱtestᐱ') testEvent = new EventEmitter();»
+}~{end-test-comp}
 
 @Component({templateUrl: 'test.ng'})
 export class TemplateReference {
@@ -228,6 +232,11 @@ export class ShowIf {
       <label>name: </label>
     </div>
     &~{entity-amp}amp;
-    `
+`,
+    'test.css': `
+body, html {
+  width: 100%;
+}
+`,
   }
 };

@@ -11,13 +11,17 @@ import {ApplicationRef} from './application_ref';
 import {APP_ID_RANDOM_PROVIDER} from './application_tokens';
 import {IterableDiffers, KeyValueDiffers, defaultIterableDiffers, defaultKeyValueDiffers} from './change_detection/change_detection';
 import {Console} from './console';
-import {InjectionToken, Injector, StaticProvider} from './di';
+import {Injector, StaticProvider} from './di';
 import {Inject, Optional, SkipSelf} from './di/metadata';
 import {ErrorHandler} from './error_handler';
+import {DEFAULT_LOCALE_ID} from './i18n/localization';
 import {LOCALE_ID} from './i18n/tokens';
+import {ivyEnabled} from './ivy_switch';
 import {ComponentFactoryResolver} from './linker';
 import {Compiler} from './linker/compiler';
 import {NgModule} from './metadata';
+import {SCHEDULER} from './render3/component_ref';
+import {setLocaleId} from './render3/i18n';
 import {NgZone} from './zone';
 
 export function _iterableDiffersFactory() {
@@ -29,7 +33,22 @@ export function _keyValueDiffersFactory() {
 }
 
 export function _localeFactory(locale?: string): string {
-  return locale || 'en-US';
+  if (locale) {
+    if (ivyEnabled) {
+      setLocaleId(locale);
+    }
+    return locale;
+  }
+  // Use `goog.LOCALE` as default value for `LOCALE_ID` token for Closure Compiler.
+  // Note: default `goog.LOCALE` value is `en`, when Angular used `en-US`. In order to preserve
+  // backwards compatibility, we use Angular default value over Closure Compiler's one.
+  if (ngI18nClosureMode && typeof goog !== 'undefined' && goog.LOCALE !== 'en') {
+    if (ivyEnabled) {
+      setLocaleId(goog.LOCALE);
+    }
+    return goog.LOCALE;
+  }
+  return DEFAULT_LOCALE_ID;
 }
 
 /**
@@ -43,6 +62,7 @@ export const APPLICATION_MODULE_PROVIDERS: StaticProvider[] = [
     deps:
         [NgZone, Console, Injector, ErrorHandler, ComponentFactoryResolver, ApplicationInitStatus]
   },
+  {provide: SCHEDULER, deps: [NgZone], useFactory: zoneSchedulerFactory},
   {
     provide: ApplicationInitStatus,
     useClass: ApplicationInitStatus,
@@ -58,6 +78,25 @@ export const APPLICATION_MODULE_PROVIDERS: StaticProvider[] = [
     deps: [[new Inject(LOCALE_ID), new Optional(), new SkipSelf()]]
   },
 ];
+
+/**
+ * Schedule work at next available slot.
+ *
+ * In Ivy this is just `requestAnimationFrame`. For compatibility reasons when bootstrapped
+ * using `platformRef.bootstrap` we need to use `NgZone.onStable` as the scheduling mechanism.
+ * This overrides the scheduling mechanism in Ivy to `NgZone.onStable`.
+ *
+ * @param ngZone NgZone to use for scheduling.
+ */
+export function zoneSchedulerFactory(ngZone: NgZone): (fn: () => void) => void {
+  let queue: (() => void)[] = [];
+  ngZone.onStable.subscribe(() => {
+    while (queue.length) {
+      queue.pop() !();
+    }
+  });
+  return function(fn: () => void) { queue.push(fn); };
+}
 
 /**
  * Configures the root injector for an app with

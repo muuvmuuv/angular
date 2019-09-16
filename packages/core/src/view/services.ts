@@ -6,18 +6,19 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {DebugElement__PRE_R3__, DebugNode__PRE_R3__, EventListener, getDebugNode, indexDebugNode, removeDebugNodeFromIndex} from '../debug/debug_node';
+import {DebugElement__PRE_R3__, DebugEventListener, DebugNode__PRE_R3__, getDebugNode, indexDebugNode, removeDebugNodeFromIndex} from '../debug/debug_node';
 import {Injector} from '../di';
-import {InjectableDef, getInjectableDef} from '../di/defs';
 import {InjectableType} from '../di/injectable';
+import {getInjectableDef, ɵɵInjectableDef} from '../di/interface/defs';
 import {ErrorHandler} from '../error_handler';
-import {isDevMode} from '../is_dev_mode';
+import {Type} from '../interface/type';
 import {ComponentFactory} from '../linker/component_factory';
 import {NgModuleRef} from '../linker/ng_module_factory';
 import {Renderer2, RendererFactory2, RendererStyleFlags2, RendererType2} from '../render/api';
-import {Sanitizer} from '../sanitization/security';
-import {Type} from '../type';
+import {Sanitizer} from '../sanitization/sanitizer';
+import {isDevMode} from '../util/is_dev_mode';
 import {normalizeDebugBindingName, normalizeDebugBindingValue} from '../util/ng_reflect';
+
 import {isViewDebugError, viewDestroyedError, viewWrappedDebugError} from './errors';
 import {resolveDep} from './provider';
 import {dirtyParentQueries, getQueryValue} from './query';
@@ -169,7 +170,7 @@ const viewDefOverrides = new Map<any, ViewDefinition>();
 
 function debugOverrideProvider(override: ProviderOverride) {
   providerOverrides.set(override.token, override);
-  let injectableDef: InjectableDef<any>|null;
+  let injectableDef: ɵɵInjectableDef<any>|null;
   if (typeof override.token === 'function' && (injectableDef = getInjectableDef(override.token)) &&
       typeof injectableDef.providedIn === 'function') {
     providerOverridesWithScope.set(override.token as InjectableType<any>, override);
@@ -687,7 +688,11 @@ export class DebugRenderer2 implements Renderer2 {
   constructor(private delegate: Renderer2) { this.data = this.delegate.data; }
 
   destroyNode(node: any) {
-    removeDebugNodeFromIndex(getDebugNode(node) !);
+    const debugNode = getDebugNode(node) !;
+    removeDebugNodeFromIndex(debugNode);
+    if (debugNode instanceof DebugNode__PRE_R3__) {
+      debugNode.listeners.length = 0;
+    }
     if (this.delegate.destroyNode) {
       this.delegate.destroyNode(node);
     }
@@ -826,7 +831,7 @@ export class DebugRenderer2 implements Renderer2 {
     if (typeof target !== 'string') {
       const debugEl = getDebugNode(target);
       if (debugEl) {
-        debugEl.listeners.push(new EventListener(eventName, callback));
+        debugEl.listeners.push(new DebugEventListener(eventName, callback));
       }
     }
 

@@ -7,7 +7,7 @@
  */
 
 import {Injectable} from '../di';
-import {scheduleMicroTask} from '../util';
+import {scheduleMicroTask} from '../util/microtask';
 import {NgZone} from '../zone/ng_zone';
 
 /**
@@ -27,7 +27,7 @@ export interface PendingMacrotask {
   source: string;
   creationLocation: Error;
   runCount?: number;
-  data: TaskData;
+  data?: TaskData;
 }
 
 export interface TaskData {

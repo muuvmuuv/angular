@@ -19,7 +19,7 @@ import {JitReflector} from '@angular/platform-browser-dynamic/src/compiler_refle
 import {CompileEntryComponentMetadata, CompileStylesheetMetadata} from '../../src/compile_metadata';
 import {Identifiers, createTokenForExternalReference, createTokenForReference} from '../../src/identifiers';
 import {DEFAULT_INTERPOLATION_CONFIG, InterpolationConfig} from '../../src/ml_parser/interpolation_config';
-import {noUndefined} from '../../src/util';
+import {newArray, noUndefined} from '../../src/util';
 import {MockSchemaRegistry} from '../../testing';
 import {unparse} from '../expression_parser/utils/unparser';
 import {TEST_COMPILER_PROVIDERS} from '../test_bindings';
@@ -420,7 +420,7 @@ class ArrayConsole implements Console {
       expectVisitedNode(
           new class extends
           NullVisitor{visitEvent(ast: BoundEventAst, context: any): any{return ast;}},
-          new BoundEventAst('foo', 'bar', 'goo', null !, null !));
+          new BoundEventAst('foo', 'bar', 'goo', null !, null !, null !));
     });
 
     it('should visit BoundElementPropertyAst', () => {
@@ -474,14 +474,14 @@ class ArrayConsole implements Console {
         new EmbeddedTemplateAst([], [], [], [], [], [], false, [], [], 0, null !),
         new ElementAst('foo', [], [], [], [], [], [], false, [], [], 0, null !, null !),
         new ReferenceAst('foo', null !, 'bar', null !), new VariableAst('foo', 'bar', null !),
-        new BoundEventAst('foo', 'bar', 'goo', null !, null !),
+        new BoundEventAst('foo', 'bar', 'goo', null !, null !, null !),
         new BoundElementPropertyAst('foo', null !, null !, null !, 'bar', null !),
         new AttrAst('foo', 'bar', null !), new BoundTextAst(null !, 0, null !),
         new TextAst('foo', 0, null !), new DirectiveAst(null !, [], [], [], 0, null !),
         new BoundDirectivePropertyAst('foo', 'bar', null !, null !)
       ];
       const result = templateVisitAll(visitor, nodes, null);
-      expect(result).toEqual(new Array(nodes.length).fill(true));
+      expect(result).toEqual(newArray(nodes.length).fill(true));
     });
   });
 
@@ -1888,7 +1888,7 @@ Can't bind to 'invalidProp' since it isn't a known property of 'div'. ("[ERROR -
 
       it('should report errors in expressions', () => {
         expect(() => parse('<div [prop]="a b"></div>', [])).toThrowError(`Template parse errors:
-Parser Error: Unexpected token 'b' at column 3 in [a b] in TestComp@0:5 ("<div [ERROR ->][prop]="a b"></div>"): TestComp@0:5`);
+Parser Error: Unexpected token 'b' at column 3 in [a b] in TestComp@0:13 ("<div [prop]="[ERROR ->]a b"></div>"): TestComp@0:13`);
       });
 
       it('should not throw on invalid property names if the property is used by a directive',

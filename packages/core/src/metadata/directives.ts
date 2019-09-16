@@ -8,13 +8,11 @@
 
 import {ChangeDetectionStrategy} from '../change_detection/constants';
 import {Provider} from '../di';
-import {NG_BASE_DEF} from '../render3/fields';
+import {Type} from '../interface/type';
 import {compileComponent as render3CompileComponent, compileDirective as render3CompileDirective} from '../render3/jit/directive';
 import {compilePipe as render3CompilePipe} from '../render3/jit/pipe';
-import {Type} from '../type';
 import {TypeDecorator, makeDecorator, makePropDecorator} from '../util/decorators';
 import {noop} from '../util/noop';
-import {fillProperties} from '../util/property';
 
 import {ViewEncapsulation} from './view';
 
@@ -26,8 +24,9 @@ import {ViewEncapsulation} from './view';
  */
 export interface DirectiveDecorator {
   /**
-   * Marks a class as an Angular directive. You can define your own
-   * directives to attach custom behavior to elements in the DOM.
+   * Decorator that marks a class as an Angular directive.
+   * You can define your own directives to attach custom behavior to elements in the DOM.
+   *
    * The options provide configuration metadata that determines
    * how the directive should be processed, instantiated and used at
    * runtime.
@@ -39,7 +38,7 @@ export interface DirectiveDecorator {
    * @usageNotes
    * To define a directive, mark the class with the decorator and provide metadata.
    *
-   * ```
+   * ```ts
    * import {Directive} from '@angular/core';
    *
    * @Directive({
@@ -60,7 +59,7 @@ export interface DirectiveDecorator {
    * a directive imported from another module.
    * List the directive class in the `declarations` field of an NgModule.
    *
-   * ```
+   * ```ts
    * declarations: [
    *  AppComponent,
    *  MyDirective
@@ -69,12 +68,12 @@ export interface DirectiveDecorator {
    *
    * @Annotation
    */
-  (obj: Directive): TypeDecorator;
+  (obj?: Directive): TypeDecorator;
 
   /**
    * See the `Directive` decorator.
    */
-  new (obj: Directive): Directive;
+  new (obj?: Directive): Directive;
 }
 
 /**
@@ -124,9 +123,8 @@ export interface Directive {
    * - `bindingProperty` specifies the DOM property where the value is read from.
    *
    * When `bindingProperty` is not provided, it is assumed to be equal to `directiveProperty`.
-   * @usageNotes
    *
-   * ### Example
+   * @usageNotes
    *
    * The following example creates a component with two data-bound properties.
    *
@@ -142,7 +140,7 @@ export interface Directive {
    * class BankAccount {
    *   bankName: string;
    *   id: string;
-   *
+   * }
    * ```
    *
    */
@@ -162,21 +160,28 @@ export interface Directive {
    *
    * @usageNotes
    *
-   * ### Example
-   *
    * ```typescript
-   * @Directive({
+   * @Component({
    *   selector: 'child-dir',
-   *   exportAs: 'child'
+   *   outputs: [ 'bankNameChange' ]
+   *   template: `<input (input)="bankNameChange.emit($event.target.value)" />`
    * })
    * class ChildDir {
+   *  bankNameChange: EventEmitter<string> = new EventEmitter<string>();
    * }
    *
    * @Component({
    *   selector: 'main',
-   *   template: `<child-dir #c="child"></child-dir>`
+   *   template: `
+   *     {{ bankName }} <child-dir (bankNameChange)="onBankNameChange($event)"></child-dir>
+   *   `
    * })
    * class MainComponent {
+   *  bankName: string;
+   *
+   *   onBankNameChange(bankName: string) {
+   *     this.bankName = bankName;
+   *   }
    * }
    * ```
    *
@@ -195,9 +200,7 @@ export interface Directive {
    *
    * @usageNotes
    *
-   * ### Simple Example
-   *
-   * ```
+   * ```ts
    * @Directive({
    *   selector: 'child-dir',
    *   exportAs: 'child'
@@ -224,12 +227,10 @@ export interface Directive {
    *
    * @usageNotes
    *
-   * ### Example
-   *
    * The following example shows how queries are defined
    * and when their results are available in lifecycle hooks:
    *
-   * ```
+   * ```ts
    * @Component({
    *   selector: 'someDir',
    *   queries: {
@@ -274,7 +275,7 @@ export interface Directive {
    * To listen to global events, add the target to the event name.
    * The target can be `window`, `document` or `body`.
    * - The value is the statement to execute when the event occurs. If the
-   * statement evalueates to `false`, then `preventDefault` is applied on the DOM
+   * statement evaluates to `false`, then `preventDefault` is applied on the DOM
    * event. A handler method can refer to the `$event` local variable.
    *
    */
@@ -317,7 +318,7 @@ export interface ComponentDecorator {
    *
    * A component must belong to an NgModule in order for it to be available
    * to another component or application. To make it a member of an NgModule,
-   * list it in the `declarations` field of the `@NgModule` metadata.
+   * list it in the `declarations` field of the `NgModule` metadata.
    *
    * Note that, in addition to these options for configuring a directive,
    * you can control a component's runtime behavior by implementing
@@ -331,8 +332,7 @@ export interface ComponentDecorator {
    * The following example creates a component with two data-bound properties,
    * specified by the `inputs` value.
    *
-   * <code-example path="core/ts/metadata/directives.ts" region="component-input">
-   * </code-example>
+   * <code-example path="core/ts/metadata/directives.ts" region="component-input"></code-example>
    *
    *
    * ### Setting component outputs
@@ -347,7 +347,7 @@ export interface ComponentDecorator {
    * The following simple example injects a class into a component
    * using the view provider specified in component metadata:
    *
-   * ```
+   * ```ts
    * class Greeter {
    *    greet(name:string) {
    *      return 'Hello ' + name + '!';
@@ -388,13 +388,13 @@ export interface ComponentDecorator {
    * * Trims all whitespaces at the beginning and the end of a template.
    * * Removes whitespace-only text nodes. For example,
    *
-   * ```
+   * ```html
    * <button>Action 1</button>  <button>Action 2</button>
    * ```
    *
    * becomes:
    *
-   * ```
+   * ```html
    * <button>Action 1</button><button>Action 2</button>
    * ```
    *
@@ -443,7 +443,7 @@ export interface ComponentDecorator {
    */
   (obj: Component): TypeDecorator;
   /**
-   * See the `@Component` decorator.
+   * See the `Component` decorator.
    */
   new (obj: Component): Component;
 }
@@ -482,8 +482,8 @@ export interface Component extends Directive {
   moduleId?: string;
 
   /**
-   * The URL of a template file for an Angular component. If provided,
-   * do not supply an inline template using `template`.
+   * The relative path or absolute URL of a template file for an Angular component.
+   * If provided, do not supply an inline template using `template`.
    *
    */
   templateUrl?: string;
@@ -496,7 +496,7 @@ export interface Component extends Directive {
   template?: string;
 
   /**
-   * One or more URLs for files containing CSS stylesheets to use
+   * One or more relative paths or absolute URLs for files containing CSS stylesheets to use
    * in this component.
    */
   styleUrls?: string[];
@@ -517,12 +517,12 @@ export interface Component extends Directive {
 
   /**
    * An encapsulation policy for the template and CSS styles. One of:
-   * - `ViewEncapsulation.Native`: Use shadow roots. This works
-   * only if natively available on the platform.
+   * - `ViewEncapsulation.Native`: Deprecated. Use `ViewEncapsulation.ShadowDom` instead.
    * - `ViewEncapsulation.Emulated`: Use shimmed CSS that
    * emulates the native behavior.
    * - `ViewEncapsulation.None`: Use global CSS without any
    * encapsulation.
+   * - `ViewEncapsulation.ShadowDom`: Use Shadow DOM v1 to encapsulate styles.
    *
    * If not supplied, the value is taken from `CompilerOptions`. The default compiler option is
    * `ViewEncapsulation.Emulated`.
@@ -572,7 +572,24 @@ export const Component: ComponentDecorator = makeDecorator(
  */
 export interface PipeDecorator {
   /**
-   * Declares a reusable pipe function, and supplies configuration metadata.
+   *
+   * Decorator that marks a class as pipe and supplies configuration metadata.
+   *
+   * A pipe class must implement the `PipeTransform` interface.
+   * For example, if the name is "myPipe", use a template binding expression
+   * such as the following:
+   *
+   * ```
+   * {{ exp | myPipe }}
+   * ```
+   *
+   * The result of the expression is passed to the pipe's `transform()` method.
+   *
+   * A pipe must belong to an NgModule in order for it to be available
+   * to a template. To make it a member of an NgModule,
+   * list it in the `declarations` field of the `NgModule` metadata.
+   *
+   * @see [Style Guide: Pipe Names](guide/styleguide#02-09)
    *
    */
   (obj: Pipe): TypeDecorator;
@@ -591,7 +608,8 @@ export interface PipeDecorator {
 export interface Pipe {
   /**
    * The pipe name to use in template bindings.
-   *
+   * Typically uses [lowerCamelCase](guide/glossary#case-types)
+   * because the name cannot contain hyphens.
    */
   name: string;
 
@@ -622,23 +640,50 @@ export const Pipe: PipeDecorator = makeDecorator(
  */
 export interface InputDecorator {
   /**
-   * Decorator that marks a class as pipe and supplies configuration metadata.
-   *
-   * A pipe class must implement the `PipeTransform` interface.
-   * For example, if the name is "myPipe", use a template binding expression
-   * such as the following:
-   *
-   * ```
-   * {{ exp | myPipe }}
-   * ```
-   *
-   * The result of the expression is passed to the pipe's `transform()` method.
-   *
-   * A pipe must belong to an NgModule in order for it to be available
-   * to a template. To make it a member of an NgModule,
-   * list it in the `declarations` field of the `@NgModule` metadata.
-   *
-   */
+  * Decorator that marks a class field as an input property and supplies configuration metadata.
+  * The input property is bound to a DOM property in the template. During change detection,
+  * Angular automatically updates the data property with the DOM property's value.
+  *
+  * @usageNotes
+  *
+  * You can supply an optional name to use in templates when the
+  * component is instantiated, that maps to the
+  * name of the bound property. By default, the original
+  * name of the bound property is used for input binding.
+  *
+  * The following example creates a component with two input properties,
+  * one of which is given a special binding name.
+  *
+  * ```typescript
+  * @Component({
+  *   selector: 'bank-account',
+  *   template: `
+  *     Bank Name: {{bankName}}
+  *     Account Id: {{id}}
+  *   `
+  * })
+  * class BankAccount {
+  *   // This property is bound using its original name.
+  *   @Input() bankName: string;
+  *   // this property value is bound to a different property name
+  *   // when this component is instantiated in a template.
+  *   @Input('account-id') id: string;
+  *
+  *   // this property is not bound, and is not automatically updated by Angular
+  *   normalizedBankName: string;
+  * }
+  *
+  * @Component({
+  *   selector: 'app',
+  *   template: `
+  *     <bank-account bankName="RBC" account-id="4747"></bank-account>
+  *   `
+  * })
+  * class App {}
+  * ```
+  *
+  * @see [Input and Output properties](guide/template-syntax#input-and-output-properties)
+  */
   (bindingPropertyName?: string): any;
   new (bindingPropertyName?: string): any;
 }
@@ -650,94 +695,17 @@ export interface InputDecorator {
  */
 export interface Input {
   /**
-   * Decorator that marks a class field as an input property and supplies configuration metadata.
-   * Declares a data-bound input property, which Angular automatically updates
-   * during change detection.
-   *
-   * @usageNotes
-   *
-   * You can supply an optional name to use in templates when the
-   * component is instantiated, that maps to the
-   * name of the bound property. By default, the original
-   * name of the bound property is used for input binding.
-   *
-   * The following example creates a component with two input properties,
-   * one of which is given a special binding name.
-   *
-   * ```typescript
-   * @Component({
-   *   selector: 'bank-account',
-   *   template: `
-   *     Bank Name: {{bankName}}
-   *     Account Id: {{id}}
-   *   `
-   * })
-   * class BankAccount {
-   *   // This property is bound using its original name.
-   *   @Input() bankName: string;
-   *   // this property value is bound to a different property name
-   *   // when this component is instantiated in a template.
-   *   @Input('account-id') id: string;
-   *
-   *   // this property is not bound, and is not automatically updated by Angular
-   *   normalizedBankName: string;
-   * }
-   *
-   * @Component({
-   *   selector: 'app',
-   *   template: `
-   *     <bank-account bankName="RBC" account-id="4747"></bank-account>
-   *   `
-   * })
-   *
-   * class App {}
-   * ```
-   *
+   * The name of the DOM property to which the input property is bound.
    */
   bindingPropertyName?: string;
 }
-
-const initializeBaseDef = (target: any): void => {
-  const constructor = target.constructor;
-  const inheritedBaseDef = constructor.ngBaseDef;
-
-  const baseDef = constructor.ngBaseDef = {
-    inputs: {},
-    outputs: {},
-    declaredInputs: {},
-  };
-
-  if (inheritedBaseDef) {
-    fillProperties(baseDef.inputs, inheritedBaseDef.inputs);
-    fillProperties(baseDef.outputs, inheritedBaseDef.outputs);
-    fillProperties(baseDef.declaredInputs, inheritedBaseDef.declaredInputs);
-  }
-};
-
-/**
- * Does the work of creating the `ngBaseDef` property for the @Input and @Output decorators.
- * @param key "inputs" or "outputs"
- */
-const updateBaseDefFromIOProp = (getProp: (baseDef: {inputs?: any, outputs?: any}) => any) =>
-    (target: any, name: string, ...args: any[]) => {
-      const constructor = target.constructor;
-
-      if (!constructor.hasOwnProperty(NG_BASE_DEF)) {
-        initializeBaseDef(target);
-      }
-
-      const baseDef = constructor.ngBaseDef;
-      const defProp = getProp(baseDef);
-      defProp[name] = args[0];
-    };
 
 /**
  * @Annotation
  * @publicApi
  */
-export const Input: InputDecorator = makePropDecorator(
-    'Input', (bindingPropertyName?: string) => ({bindingPropertyName}), undefined,
-    updateBaseDefFromIOProp(baseDef => baseDef.inputs || {}));
+export const Input: InputDecorator =
+    makePropDecorator('Input', (bindingPropertyName?: string) => ({bindingPropertyName}));
 
 /**
  * Type of the Output decorator / constructor function.
@@ -747,8 +715,7 @@ export const Input: InputDecorator = makePropDecorator(
 export interface OutputDecorator {
   /**
   * Decorator that marks a class field as an output property and supplies configuration metadata.
-  * Declares a data-bound output property, which Angular automatically updates
-  * during change detection.
+  * The DOM property bound to the output property is automatically updated during change detection.
   *
   * @usageNotes
   *
@@ -757,7 +724,9 @@ export interface OutputDecorator {
   * name of the bound property. By default, the original
   * name of the bound property is used for output binding.
   *
-  * See `@Input` decorator for an example of providing a binding name.
+  * See `Input` decorator for an example of providing a binding name.
+  *
+  * @see [Input and Output properties](guide/template-syntax#input-and-output-properties)
   *
   */
   (bindingPropertyName?: string): any;
@@ -769,15 +738,19 @@ export interface OutputDecorator {
  *
  * @publicApi
  */
-export interface Output { bindingPropertyName?: string; }
+export interface Output {
+  /**
+  * The name of the DOM property to which the output property is bound.
+  */
+  bindingPropertyName?: string;
+}
 
 /**
  * @Annotation
  * @publicApi
  */
-export const Output: OutputDecorator = makePropDecorator(
-    'Output', (bindingPropertyName?: string) => ({bindingPropertyName}), undefined,
-    updateBaseDefFromIOProp(baseDef => baseDef.outputs || {}));
+export const Output: OutputDecorator =
+    makePropDecorator('Output', (bindingPropertyName?: string) => ({bindingPropertyName}));
 
 
 
@@ -825,7 +798,12 @@ export interface HostBindingDecorator {
  *
  * @publicApi
  */
-export interface HostBinding { hostPropertyName?: string; }
+export interface HostBinding {
+  /**
+   * The DOM property that is bound to a data property.
+   */
+  hostPropertyName?: string;
+}
 
 /**
  * @Annotation
@@ -841,6 +819,10 @@ export const HostBinding: HostBindingDecorator =
  * @publicApi
  */
 export interface HostListenerDecorator {
+  /**
+   * Decorator that declares a DOM event to listen for,
+   * and provides a handler method to run when that event occurs.
+   */
   (eventName: string, args?: string[]): any;
   new (eventName: string, args?: string[]): any;
 }
@@ -852,7 +834,7 @@ export interface HostListenerDecorator {
  */
 export interface HostListener {
   /**
-   * The CSS event to listen for.
+   * The DOM event to listen for.
    */
   eventName?: string;
   /**
@@ -862,9 +844,10 @@ export interface HostListener {
 }
 
 /**
- * Binds a CSS event to a host listener and supplies configuration metadata.
+ * Decorator that binds a DOM event to a host listener and supplies configuration metadata.
  * Angular invokes the supplied handler method when the host element emits the specified event,
  * and updates the bound element with the result.
+ *
  * If the handler method returns false, applies `preventDefault` on the bound element.
  *
  * @usageNotes
@@ -872,7 +855,7 @@ export interface HostListener {
  * The following example declares a directive
  * that attaches a click listener to a button and counts clicks.
  *
- * ```
+ * ```ts
  * @Directive({selector: 'button[counting]'})
  * class CountClicks {
  *   numberOfClicks = 0;

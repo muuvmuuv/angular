@@ -10,24 +10,46 @@ import {Injector, NgModuleRef, ViewEncapsulation} from '../../src/core';
 import {ComponentFactory} from '../../src/linker/component_factory';
 import {RendererFactory2} from '../../src/render/api';
 import {injectComponentFactoryResolver} from '../../src/render3/component_ref';
-import {defineComponent} from '../../src/render3/index';
+import {ɵɵdefineComponent} from '../../src/render3/index';
 import {domRendererFactory3} from '../../src/render3/interfaces/renderer';
-import {Sanitizer} from '../../src/sanitization/security';
+import {Sanitizer} from '../../src/sanitization/sanitizer';
 
 describe('ComponentFactory', () => {
   const cfr = injectComponentFactoryResolver();
 
   describe('constructor()', () => {
-    it('should correctly populate public properties', () => {
+    it('should correctly populate default properties', () => {
       class TestComponent {
-        static ngComponentDef = defineComponent({
+        static ngFactoryDef = () => new TestComponent();
+        static ngComponentDef = ɵɵdefineComponent({
+          type: TestComponent,
+          selectors: [['test', 'foo'], ['bar']],
+          consts: 0,
+          vars: 0,
+          template: () => undefined,
+        });
+      }
+
+      const cf = cfr.resolveComponentFactory(TestComponent);
+
+      expect(cf.selector).toBe('test');
+      expect(cf.componentType).toBe(TestComponent);
+      expect(cf.ngContentSelectors).toEqual([]);
+      expect(cf.inputs).toEqual([]);
+      expect(cf.outputs).toEqual([]);
+    });
+
+    it('should correctly populate defined properties', () => {
+      class TestComponent {
+        static ngFactoryDef = () => new TestComponent();
+        static ngComponentDef = ɵɵdefineComponent({
           type: TestComponent,
           encapsulation: ViewEncapsulation.None,
           selectors: [['test', 'foo'], ['bar']],
           consts: 0,
           vars: 0,
           template: () => undefined,
-          factory: () => new TestComponent(),
+          ngContentSelectors: ['*', 'a', 'b'],
           inputs: {
             in1: 'in1',
             in2: ['input-attr-2', 'in2'],
@@ -42,7 +64,7 @@ describe('ComponentFactory', () => {
       const cf = cfr.resolveComponentFactory(TestComponent);
 
       expect(cf.componentType).toBe(TestComponent);
-      expect(cf.ngContentSelectors).toEqual([]);
+      expect(cf.ngContentSelectors).toEqual(['*', 'a', 'b']);
       expect(cf.selector).toBe('test');
 
       expect(cf.inputs).toEqual([
@@ -67,14 +89,14 @@ describe('ComponentFactory', () => {
       createRenderer3Spy = spyOn(domRendererFactory3, 'createRenderer').and.callThrough();
 
       class TestComponent {
-        static ngComponentDef = defineComponent({
+        static ngFactoryDef = () => new TestComponent();
+        static ngComponentDef = ɵɵdefineComponent({
           type: TestComponent,
           encapsulation: ViewEncapsulation.None,
           selectors: [['test']],
           consts: 0,
           vars: 0,
           template: () => undefined,
-          factory: () => new TestComponent(),
         });
       }
 

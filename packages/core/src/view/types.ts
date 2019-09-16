@@ -8,14 +8,16 @@
 
 import {Injector} from '../di';
 import {ErrorHandler} from '../error_handler';
+import {Type} from '../interface/type';
 import {ComponentFactory} from '../linker/component_factory';
 import {NgModuleRef} from '../linker/ng_module_factory';
 import {QueryList} from '../linker/query_list';
 import {TemplateRef} from '../linker/template_ref';
 import {ViewContainerRef} from '../linker/view_container_ref';
 import {Renderer2, RendererFactory2, RendererType2} from '../render/api';
-import {Sanitizer, SecurityContext} from '../sanitization/security';
-import {Type} from '../type';
+import {Sanitizer} from '../sanitization/sanitizer';
+import {SecurityContext} from '../sanitization/security';
+
 
 
 // -------------------------------------
@@ -43,7 +45,7 @@ export interface NgModuleDefinition extends Definition<NgModuleDefinitionFactory
   providers: NgModuleProviderDef[];
   providersByKey: {[tokenKey: string]: NgModuleProviderDef};
   modules: any[];
-  isRoot: boolean;
+  scope: 'root'|'platform'|null;
 }
 
 export interface NgModuleDefinitionFactory extends DefinitionFactory<NgModuleDefinition> {}

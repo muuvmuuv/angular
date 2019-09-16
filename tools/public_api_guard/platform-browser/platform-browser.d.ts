@@ -9,15 +9,12 @@ export declare class BrowserTransferStateModule {
 }
 
 export declare class By {
-    static all(): Predicate<DebugElement>;
+    static all(): Predicate<DebugNode>;
     static css(selector: string): Predicate<DebugElement>;
-    static directive(type: Type<any>): Predicate<DebugElement>;
+    static directive(type: Type<any>): Predicate<DebugNode>;
 }
 
 export declare function disableDebugTools(): void;
-
-/** @deprecated */
-export declare const DOCUMENT: InjectionToken<Document>;
 
 export declare abstract class DomSanitizer implements Sanitizer {
     abstract bypassSecurityTrustHtml(value: string): SafeHtml;
@@ -62,6 +59,9 @@ export declare class HammerGestureConfig {
 }
 
 export declare type HammerLoader = () => Promise<void>;
+
+export declare class HammerModule {
+}
 
 export declare function makeStateKey<T = void>(key: string): StateKey<T>;
 

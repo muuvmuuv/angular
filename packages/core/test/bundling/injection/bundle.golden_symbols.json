@@ -1,18 +1,18 @@
 [
   {
-    "name": "APP_ROOT"
+    "name": "CIRCULAR"
   },
   {
-    "name": "CIRCULAR$1"
-  },
-  {
-    "name": "EMPTY_ARRAY$1"
+    "name": "EMPTY_ARRAY"
   },
   {
     "name": "EmptyErrorImpl"
   },
   {
-    "name": "INJECTOR$1"
+    "name": "INJECTOR"
+  },
+  {
+    "name": "INJECTOR_SCOPE"
   },
   {
     "name": "Inject"
@@ -24,19 +24,31 @@
     "name": "InjectionToken"
   },
   {
+    "name": "NEW_LINE"
+  },
+  {
+    "name": "NG_FACTORY_DEF"
+  },
+  {
     "name": "NG_INJECTABLE_DEF"
   },
   {
     "name": "NG_INJECTOR_DEF"
   },
   {
+    "name": "NG_TEMP_TOKEN_PATH"
+  },
+  {
+    "name": "NG_TOKEN_PATH"
+  },
+  {
     "name": "NOT_YET"
   },
   {
-    "name": "NULL_INJECTOR$2"
+    "name": "NO_NEW_LINE"
   },
   {
-    "name": "NgOnChangesFeature"
+    "name": "NULL_INJECTOR"
   },
   {
     "name": "NullInjector"
@@ -51,19 +63,16 @@
     "name": "PARAMETERS"
   },
   {
-    "name": "PRIVATE_PREFIX"
+    "name": "R3Injector"
   },
   {
-    "name": "R3Injector"
+    "name": "SOURCE"
   },
   {
     "name": "ScopedService"
   },
   {
     "name": "Self"
-  },
-  {
-    "name": "SimpleChange"
   },
   {
     "name": "SkipSelf"
@@ -78,9 +87,6 @@
     "name": "UnsubscriptionErrorImpl"
   },
   {
-    "name": "_THROW_IF_NOT_FOUND"
-  },
-  {
     "name": "__forward_ref__"
   },
   {
@@ -93,6 +99,9 @@
     "name": "_currentInjector"
   },
   {
+    "name": "catchInjectorError"
+  },
+  {
     "name": "couldBeInjectableType"
   },
   {
@@ -102,16 +111,19 @@
     "name": "deepForEach"
   },
   {
-    "name": "defineInjectable"
-  },
-  {
-    "name": "defineInjector"
+    "name": "formatError"
   },
   {
     "name": "forwardRef"
   },
   {
     "name": "getClosureSafeProperty"
+  },
+  {
+    "name": "getFactoryDef"
+  },
+  {
+    "name": "getInheritedInjectableDef"
   },
   {
     "name": "getInjectableDef"
@@ -123,13 +135,13 @@
     "name": "getNullInjector"
   },
   {
+    "name": "getUndecoratedInjectableFactory"
+  },
+  {
     "name": "hasDeps"
   },
   {
     "name": "hasOnDestroy"
-  },
-  {
-    "name": "inject"
   },
   {
     "name": "injectArgs"
@@ -150,6 +162,9 @@
     "name": "isFactoryProvider"
   },
   {
+    "name": "isForwardRef"
+  },
+  {
     "name": "isTypeProvider"
   },
   {
@@ -165,7 +180,7 @@
     "name": "makeRecord"
   },
   {
-    "name": "onChangesWrapper"
+    "name": "newArray"
   },
   {
     "name": "providerToFactory"
@@ -181,5 +196,23 @@
   },
   {
     "name": "stringify"
+  },
+  {
+    "name": "throwCyclicDependencyError"
+  },
+  {
+    "name": "throwInvalidProviderError"
+  },
+  {
+    "name": "throwMixedMultiProviderError"
+  },
+  {
+    "name": "ɵɵdefineInjectable"
+  },
+  {
+    "name": "ɵɵdefineInjector"
+  },
+  {
+    "name": "ɵɵinject"
   }
 ]

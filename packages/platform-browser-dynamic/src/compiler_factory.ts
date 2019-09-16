@@ -6,9 +6,9 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {Compiler, CompilerFactory, ComponentFactory, CompilerOptions, ModuleWithComponentFactories, Inject, InjectionToken, Optional, PACKAGE_ROOT_URL, PlatformRef, StaticProvider, TRANSLATIONS, Type, isDevMode, platformCore, ɵConsole as Console, ViewEncapsulation, Injector, NgModuleFactory, TRANSLATIONS_FORMAT, MissingTranslationStrategy,} from '@angular/core';
+import {Compiler, CompilerFactory, ComponentFactory, CompilerOptions, ModuleWithComponentFactories, Inject, InjectionToken, Optional, PACKAGE_ROOT_URL, StaticProvider, TRANSLATIONS, Type, isDevMode, ɵConsole as Console, ViewEncapsulation, Injector, NgModuleFactory, TRANSLATIONS_FORMAT, MissingTranslationStrategy,} from '@angular/core';
 
-import {StaticSymbolCache, JitCompiler, ProviderMeta, ExternalReference, I18NHtmlParser, Identifiers, ViewCompiler, CompileMetadataResolver, UrlResolver, TemplateParser, NgModuleCompiler, JitSummaryResolver, SummaryResolver, StyleCompiler, PipeResolver, ElementSchemaRegistry, DomElementSchemaRegistry, ResourceLoader, NgModuleResolver, HtmlParser, CompileReflector, CompilerConfig, DirectiveNormalizer, DirectiveResolver, Lexer, Parser} from '@angular/compiler';
+import {StaticSymbolCache, JitCompiler, ProviderMeta, I18NHtmlParser, ViewCompiler, CompileMetadataResolver, UrlResolver, TemplateParser, NgModuleCompiler, JitEvaluator, JitSummaryResolver, SummaryResolver, StyleCompiler, PipeResolver, ElementSchemaRegistry, DomElementSchemaRegistry, ResourceLoader, NgModuleResolver, HtmlParser, CompileReflector, CompilerConfig, DirectiveNormalizer, DirectiveResolver, Lexer, Parser} from '@angular/compiler';
 
 import {JitReflector} from './compiler_reflector';
 
@@ -37,10 +37,11 @@ export class CompilerImpl implements Compiler {
       injector: Injector, private _metadataResolver: CompileMetadataResolver,
       templateParser: TemplateParser, styleCompiler: StyleCompiler, viewCompiler: ViewCompiler,
       ngModuleCompiler: NgModuleCompiler, summaryResolver: SummaryResolver<Type<any>>,
-      compileReflector: CompileReflector, compilerConfig: CompilerConfig, console: Console) {
+      compileReflector: CompileReflector, jitEvaluator: JitEvaluator,
+      compilerConfig: CompilerConfig, console: Console) {
     this._delegate = new JitCompiler(
         _metadataResolver, templateParser, styleCompiler, viewCompiler, ngModuleCompiler,
-        summaryResolver, compileReflector, compilerConfig, console,
+        summaryResolver, compileReflector, jitEvaluator, compilerConfig, console,
         this.getExtraNgModuleProviders.bind(this));
     this.injector = injector;
   }
@@ -83,12 +84,11 @@ export class CompilerImpl implements Compiler {
     return meta && meta.id || undefined;
   }
 }
-
 /**
  * A set of providers that provide `JitCompiler` and its dependencies to use for
  * template compilation.
  */
-export const COMPILER_PROVIDERS = <StaticProvider[]>[
+const COMPILER_PROVIDERS__PRE_R3__ = <StaticProvider[]>[
   {provide: CompileReflector, useValue: new JitReflector()},
   {provide: ResourceLoader, useValue: _NO_RESOURCE_LOADER},
   {provide: JitSummaryResolver, deps: []},
@@ -127,6 +127,7 @@ export const COMPILER_PROVIDERS = <StaticProvider[]>[
     Parser, ElementSchemaRegistry,
     I18NHtmlParser, Console]
   },
+  { provide: JitEvaluator, useClass: JitEvaluator, deps: [] },
   { provide: DirectiveNormalizer, deps: [ResourceLoader, UrlResolver, HtmlParser, CompilerConfig]},
   { provide: CompileMetadataResolver, deps: [CompilerConfig, HtmlParser, NgModuleResolver,
                       DirectiveResolver, PipeResolver,
@@ -144,7 +145,7 @@ export const COMPILER_PROVIDERS = <StaticProvider[]>[
   { provide: Compiler, useClass: CompilerImpl, deps: [Injector, CompileMetadataResolver,
                                 TemplateParser, StyleCompiler,
                                 ViewCompiler, NgModuleCompiler,
-                                SummaryResolver, CompileReflector, CompilerConfig,
+                                SummaryResolver, CompileReflector, JitEvaluator, CompilerConfig,
                                 Console]},
   { provide: DomElementSchemaRegistry, deps: []},
   { provide: ElementSchemaRegistry, useExisting: DomElementSchemaRegistry},
@@ -154,6 +155,9 @@ export const COMPILER_PROVIDERS = <StaticProvider[]>[
   { provide: NgModuleResolver, deps: [CompileReflector]},
 ];
 
+export const COMPILER_PROVIDERS__POST_R3__ =
+    <StaticProvider[]>[{provide: Compiler, useFactory: () => new Compiler()}];
+export const COMPILER_PROVIDERS = COMPILER_PROVIDERS__PRE_R3__;
 /**
  * @publicApi
  */

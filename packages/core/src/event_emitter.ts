@@ -6,20 +6,26 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
+/// <reference types="rxjs" />
+
 import {Subject, Subscription} from 'rxjs';
 
 /**
- * Use in directives and components to emit custom events synchronously
- * or asynchronously, and register handlers for those events by subscribing
- * to an instance.
+ * Use in components with the `@Output` directive to emit custom events
+ * synchronously or asynchronously, and register handlers for those events
+ * by subscribing to an instance.
  *
  * @usageNotes
+ *
+ * Extends
+ * [RxJS `Subject`](https://rxjs.dev/api/index/class/Subject)
+ * for Angular by adding the `emit()` method.
  *
  * In the following example, a component defines two output properties
  * that create event emitters. When the title is clicked, the emitter
  * emits an open or close event to toggle the current visibility state.
  *
- * ```
+ * ```html
  * @Component({
  *   selector: 'zippy',
  *   template: `
@@ -48,20 +54,14 @@ import {Subject, Subscription} from 'rxjs';
  * Access the event object with the `$event` argument passed to the output event
  * handler:
  *
- * ```
+ * ```html
  * <zippy (open)="onOpen($event)" (close)="onClose($event)"></zippy>
  * ```
  *
- * ### Notes
- *
- * Uses Rx.Observable but provides an adapter to make it work as specified here:
- * https://github.com/jhusain/observable-spec
- *
- * Once a reference implementation of the spec is available, switch to it.
- *
+ * @see [Observables in Angular](guide/observables-in-angular)
  * @publicApi
  */
-export class EventEmitter<T> extends Subject<T> {
+export class EventEmitter<T extends any> extends Subject<T> {
   // TODO: mark this as internal once all the facades are gone
   // we can't mark it as internal now because EventEmitter exported via @angular/core would not
   // contain this property making it incompatible with all the code that uses EventEmitter via
@@ -97,7 +97,7 @@ export class EventEmitter<T> extends Subject<T> {
    * @param complete When supplied, a custom handler for a completion
    * notification from this emitter.
    */
-  subscribe(generatorOrNext?: any, error?: any, complete?: any): any {
+  subscribe(generatorOrNext?: any, error?: any, complete?: any): Subscription {
     let schedulerFn: (t: any) => any;
     let errorFn = (err: any): any => null;
     let completeFn = (): any => null;

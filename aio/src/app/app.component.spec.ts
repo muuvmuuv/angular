@@ -3,14 +3,16 @@ import { inject, ComponentFixture, TestBed, fakeAsync, tick } from '@angular/cor
 import { Title } from '@angular/platform-browser';
 import { APP_BASE_HREF } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
-import { MatProgressBar, MatSidenav } from '@angular/material';
+import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatSidenav } from '@angular/material/sidenav';
 import { By } from '@angular/platform-browser';
 
-import { of, timer } from 'rxjs';
+import { Subject, of, timer } from 'rxjs';
 import { first, mapTo } from 'rxjs/operators';
 
 import { AppComponent } from './app.component';
 import { AppModule } from './app.module';
+import { CurrentNodes } from 'app/navigation/navigation.model';
 import { DocumentService } from 'app/documents/document.service';
 import { DocViewerComponent } from 'app/layout/doc-viewer/doc-viewer.component';
 import { Deployment } from 'app/shared/deployment.service';
@@ -21,7 +23,7 @@ import { Logger } from 'app/shared/logger.service';
 import { MockLocationService } from 'testing/location.service';
 import { MockLogger } from 'testing/logger.service';
 import { MockSearchService } from 'testing/search.service';
-import { NavigationNode } from 'app/navigation/navigation.service';
+import { NavigationNode, NavigationService } from 'app/navigation/navigation.service';
 import { ScrollService } from 'app/shared/scroll.service';
 import { SearchBoxComponent } from 'app/search/search-box/search-box.component';
 import { SearchResultsComponent } from 'app/shared/search-results/search-results.component';
@@ -52,7 +54,7 @@ describe('AppComponent', () => {
     await newDocPromise;       // Wait for the new document to be fetched.
     fixture.detectChanges();   // Propagate document change to the view (i.e to `DocViewer`).
     await docRenderedPromise;  // Wait for the `docRendered` event.
-  };
+  }
 
   function initializeTest(waitForDoc = true) {
     fixture = TestBed.createComponent(AppComponent);
@@ -73,7 +75,7 @@ describe('AppComponent', () => {
     tocService = de.injector.get<TocService>(TocService);
 
     return waitForDoc && awaitDocRendered();
-  };
+  }
 
 
   describe('with proper DocViewer', () => {
@@ -440,7 +442,7 @@ describe('AppComponent', () => {
       });
 
       it('should update the document title', async () => {
-        const titleService = TestBed.get(Title);
+        const titleService = TestBed.inject(Title);
         spyOn(titleService, 'setTitle');
 
         await navigateTo('guide/pipes');
@@ -448,7 +450,7 @@ describe('AppComponent', () => {
       });
 
       it('should update the document title, with a default value if the document has no title', async () => {
-        const titleService = TestBed.get(Title);
+        const titleService = TestBed.inject(Title);
         spyOn(titleService, 'setTitle');
 
         await navigateTo('no-title');
@@ -461,11 +463,15 @@ describe('AppComponent', () => {
       let scrollService: ScrollService;
       let scrollSpy: jasmine.Spy;
       let scrollToTopSpy: jasmine.Spy;
+      let scrollAfterRenderSpy: jasmine.Spy;
+      let removeStoredScrollPositionSpy: jasmine.Spy;
 
       beforeEach(() => {
         scrollService = fixture.debugElement.injector.get<ScrollService>(ScrollService);
         scrollSpy = spyOn(scrollService, 'scroll');
         scrollToTopSpy = spyOn(scrollService, 'scrollToTop');
+        scrollAfterRenderSpy = spyOn(scrollService, 'scrollAfterRender');
+        removeStoredScrollPositionSpy = spyOn(scrollService, 'removeStoredScrollPosition');
       });
 
       it('should not scroll immediately when the docId (path) changes', () => {
@@ -510,33 +516,24 @@ describe('AppComponent', () => {
         expect(scrollSpy).toHaveBeenCalledTimes(1);
       });
 
-      it('should scroll to top when call `onDocRemoved` directly', () => {
-        scrollToTopSpy.calls.reset();
-
+      it('should call `removeStoredScrollPosition` when call `onDocRemoved` directly', () => {
         component.onDocRemoved();
-        expect(scrollToTopSpy).toHaveBeenCalled();
+        expect(removeStoredScrollPositionSpy).toHaveBeenCalled();
       });
 
-      it('should scroll after a delay when call `onDocInserted` directly', fakeAsync(() => {
+      it('should call `scrollAfterRender` when call `onDocInserted` directly', (() => {
         component.onDocInserted();
-        expect(scrollSpy).not.toHaveBeenCalled();
-
-        tick(scrollDelay);
-        expect(scrollSpy).toHaveBeenCalled();
+        expect(scrollAfterRenderSpy).toHaveBeenCalledWith(scrollDelay);
       }));
 
-      it('should scroll (via `onDocInserted`) when finish navigating to a new doc', fakeAsync(() => {
-        expect(scrollToTopSpy).not.toHaveBeenCalled();
-
+      it('should call `scrollAfterRender` (via `onDocInserted`) when navigate to a new Doc', fakeAsync(() => {
         locationService.go('guide/pipes');
-        tick(1);                 // triggers the HTTP response for the document
+        tick(1); // triggers the HTTP response for the document
         fixture.detectChanges(); // triggers the event that calls `onDocInserted`
 
-        expect(scrollToTopSpy).toHaveBeenCalled();
-        expect(scrollSpy).not.toHaveBeenCalled();
+        expect(scrollAfterRenderSpy).toHaveBeenCalledWith(scrollDelay);
 
-        tick(scrollDelay);
-        expect(scrollSpy).toHaveBeenCalled();
+        tick(500); // there are other outstanding timers in the AppComponent that are not relevant
       }));
     });
 
@@ -633,6 +630,11 @@ describe('AppComponent', () => {
       };
 
 
+      beforeEach(() => {
+        tocContainer = null;
+        toc = null;
+      });
+
       it('should show/hide `<aio-toc>` based on `hasFloatingToc`', () => {
         expect(tocContainer).toBeFalsy();
         expect(toc).toBeFalsy();
@@ -656,11 +658,11 @@ describe('AppComponent', () => {
 
         component.tocMaxHeight = '100';
         fixture.detectChanges();
-        expect(tocContainer!.style['max-height']).toBe('100px');
+        expect(tocContainer!.style.maxHeight).toBe('100px');
 
         component.tocMaxHeight = '200';
         fixture.detectChanges();
-        expect(tocContainer!.style['max-height']).toBe('200px');
+        expect(tocContainer!.style.maxHeight).toBe('200px');
       });
 
       it('should restrain scrolling inside the ToC container', () => {
@@ -675,7 +677,7 @@ describe('AppComponent', () => {
       });
 
       it('should not be loaded/registered until necessary', () => {
-        const loader: TestElementsLoader = fixture.debugElement.injector.get(ElementsLoader);
+        const loader = fixture.debugElement.injector.get(ElementsLoader) as unknown as TestElementsLoader;
         expect(loader.loadCustomElement).not.toHaveBeenCalled();
 
         setHasFloatingToc(true);
@@ -780,20 +782,20 @@ describe('AppComponent', () => {
 
       describe('showing search results', () => {
         it('should not display search results when query is empty', () => {
-          const searchService: MockSearchService = TestBed.get(SearchService);
+          const searchService = TestBed.inject(SearchService) as Partial<SearchService> as MockSearchService;
           searchService.searchResults.next({ query: '', results: [] });
           fixture.detectChanges();
           expect(component.showSearchResults).toBe(false);
         });
 
         it('should hide the results when a search result is selected', () => {
-          const searchService: MockSearchService = TestBed.get(SearchService);
+          const searchService = TestBed.inject(SearchService) as Partial<SearchService> as MockSearchService;
 
           const results = [
             { path: 'news', title: 'News', type: 'marketing', keywords: '', titleWords: '', deprecated: false }
           ];
 
-          searchService.searchResults.next({ query: 'something', results: results });
+          searchService.searchResults.next({ query: 'something', results });
           component.showSearchResults = true;
           fixture.detectChanges();
 
@@ -813,106 +815,43 @@ describe('AppComponent', () => {
     });
 
     describe('archive redirection', () => {
-      it('should redirect to `docs` if deployment mode is `archive` and not at a docs page', () => {
-        createTestingModule('', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).toHaveBeenCalledWith('docs');
+      const redirectionPerMode: {[mode: string]: boolean} = {
+        archive: true,
+        next: false,
+        stable: false,
+      };
 
-        createTestingModule('resources', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).toHaveBeenCalledWith('docs');
+      Object.keys(redirectionPerMode).forEach(mode => {
+        const doRedirect = redirectionPerMode[mode];
+        const description =
+            `should ${doRedirect ? '' : 'not '}redirect to 'docs' if deployment mode is '${mode}' ` +
+            'and at a marketing page';
+        const verifyNoRedirection = () => expect(TestBed.inject(LocationService).replace).not.toHaveBeenCalled();
+        const verifyRedirection = () => expect(TestBed.inject(LocationService).replace).toHaveBeenCalledWith('docs');
+        const verifyPossibleRedirection = doRedirect ? verifyRedirection : verifyNoRedirection;
 
-        createTestingModule('guide/aot-compiler', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+        it(description, () => {
+          createTestingModule('', mode);
 
-        createTestingModule('tutorial', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+          const navService = TestBed.inject(NavigationService);
+          const testCurrentNodes = navService.currentNodes = new Subject<CurrentNodes>();
 
-        createTestingModule('tutorial/toh-pt1', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+          initializeTest(false);
 
-        createTestingModule('docs', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+          testCurrentNodes.next({SideNav: {url: 'foo', view: 'SideNav', nodes: []}});
+          verifyNoRedirection();
 
-        createTestingModule('api', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+          testCurrentNodes.next({NoSideNav: {url: 'bar', view: 'SideNav', nodes: []}});
+          verifyPossibleRedirection();
 
-        createTestingModule('api/core/getPlatform', 'archive');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-      });
+          locationService.replace.calls.reset();
+          testCurrentNodes.next({});
+          verifyPossibleRedirection();
 
-      it('should not redirect if deployment mode is `next`', () => {
-        createTestingModule('', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('resources', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('guide/aot-compiler', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('tutorial', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('tutorial/toh-pt1', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('docs', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('api', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('api/core/getPlatform', 'next');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-      });
-
-      it('should not redirect to `docs` if deployment mode is `stable`', () => {
-        createTestingModule('', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('resources', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('guide/aot-compiler', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('tutorial', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('tutorial/toh-pt1', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('docs', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('api', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
-
-        createTestingModule('api/core/getPlatform', 'stable');
-        initializeTest(false);
-        expect(TestBed.get(LocationService).replace).not.toHaveBeenCalled();
+          locationService.replace.calls.reset();
+          testCurrentNodes.next({SideNav: {url: 'baz', view: 'SideNav', nodes: []}});
+          verifyNoRedirection();
+        });
       });
     });
   });
@@ -1071,7 +1010,7 @@ describe('AppComponent', () => {
 
       it('should set the id of the doc viewer container based on the current doc', () => {
         initializeTest(false);
-        const container = fixture.debugElement.query(By.css('section.sidenav-content'));
+        const container = fixture.debugElement.query(By.css('main.sidenav-content'));
 
         navigateTo('guide/pipes');
         expect(component.pageId).toEqual('guide-pipes');
@@ -1088,7 +1027,7 @@ describe('AppComponent', () => {
 
       it('should not be affected by changes to the query', () => {
         initializeTest(false);
-        const container = fixture.debugElement.query(By.css('section.sidenav-content'));
+        const container = fixture.debugElement.query(By.css('main.sidenav-content'));
 
         navigateTo('guide/pipes');
         navigateTo('guide/other?search=http');

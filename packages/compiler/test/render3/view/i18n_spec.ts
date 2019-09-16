@@ -5,16 +5,23 @@
  * Use of this source code is governed by an MIT-style license that can be
  * found in the LICENSE file at https://angular.io/license
  */
+import {I18nMeta, parseI18nMeta} from '@angular/compiler/src/render3/view/i18n/meta';
 
+import {AST} from '../../../src/expression_parser/ast';
+import {Lexer} from '../../../src/expression_parser/lexer';
+import {Parser} from '../../../src/expression_parser/parser';
 import * as i18n from '../../../src/i18n/i18n_ast';
 import * as o from '../../../src/output/output_ast';
 import * as t from '../../../src/render3/r3_ast';
 import {I18nContext} from '../../../src/render3/view/i18n/context';
-import {getSerializedI18nContent} from '../../../src/render3/view/i18n/serializer';
-import {I18nMeta, formatI18nPlaceholderName, parseI18nMeta} from '../../../src/render3/view/i18n/util';
+import {serializeI18nMessageForGetMsg} from '../../../src/render3/view/i18n/get_msg_utils';
+import {serializeIcuNode} from '../../../src/render3/view/i18n/icu_serializer';
+import {serializeI18nMessageForLocalize} from '../../../src/render3/view/i18n/localize_utils';
+import {formatI18nPlaceholderName} from '../../../src/render3/view/i18n/util';
 
 import {parseR3 as parse} from './util';
 
+const expressionParser = new Parser(new Lexer());
 const i18nOf = (element: t.Node & {i18n?: i18n.AST}) => element.i18n !;
 
 describe('I18nContext', () => {
@@ -44,8 +51,8 @@ describe('I18nContext', () => {
 
     // binding collection checks
     expect(ctx.bindings.size).toBe(0);
-    ctx.appendBinding(o.literal(1));
-    ctx.appendBinding(o.literal(2));
+    ctx.appendBinding(expressionParser.parseInterpolation('{{ valueA }}', '', 0) as AST);
+    ctx.appendBinding(expressionParser.parseInterpolation('{{ valueB }}', '', 0) as AST);
     expect(ctx.bindings.size).toBe(2);
   });
 
@@ -72,7 +79,7 @@ describe('I18nContext', () => {
 
     // set data for root ctx
     ctx.appendBoundText(i18nOf(boundTextA));
-    ctx.appendBinding(o.literal('valueA'));
+    ctx.appendBinding(expressionParser.parseInterpolation('{{ valueA }}', '', 0) as AST);
     ctx.appendElement(i18nOf(elementA), 0);
     ctx.appendTemplate(i18nOf(templateA), 1);
     ctx.appendElement(i18nOf(elementA), 0, true);
@@ -88,11 +95,11 @@ describe('I18nContext', () => {
     // set data for child context
     childCtx.appendElement(i18nOf(elementB), 0);
     childCtx.appendBoundText(i18nOf(boundTextB));
-    childCtx.appendBinding(o.literal('valueB'));
+    childCtx.appendBinding(expressionParser.parseInterpolation('{{ valueB }}', '', 0) as AST);
     childCtx.appendElement(i18nOf(elementC), 1);
     childCtx.appendElement(i18nOf(elementC), 1, true);
     childCtx.appendBoundText(i18nOf(boundTextC));
-    childCtx.appendBinding(o.literal('valueC'));
+    childCtx.appendBinding(expressionParser.parseInterpolation('{{ valueC }}', '', 0) as AST);
     childCtx.appendElement(i18nOf(elementB), 0, true);
 
     expect(childCtx.bindings.size).toBe(2);
@@ -210,45 +217,173 @@ describe('Utils', () => {
   });
 });
 
-describe('Serializer', () => {
+describe('serializeI18nMessageForGetMsg', () => {
   const serialize = (input: string): string => {
     const tree = parse(`<div i18n>${input}</div>`);
     const root = tree.nodes[0] as t.Element;
-    return getSerializedI18nContent(root.i18n as i18n.Message);
+    return serializeI18nMessageForGetMsg(root.i18n as i18n.Message);
   };
-  it('should produce output for i18n content', () => {
-    const cases = [
-      // plain text
-      ['Some text', 'Some text'],
 
-      // text with interpolation
-      [
-        'Some text {{ valueA }} and {{ valueB + valueC }}',
-        'Some text {$interpolation} and {$interpolation_1}'
+  it('should serialize plain text for `GetMsg()`',
+     () => { expect(serialize('Some text')).toEqual('Some text'); });
+
+  it('should serialize text with interpolation for `GetMsg()`', () => {
+    expect(serialize('Some text {{ valueA }} and {{ valueB + valueC }}'))
+        .toEqual('Some text {$interpolation} and {$interpolation_1}');
+  });
+
+  it('should serialize interpolation with named placeholder for `GetMsg()`', () => {
+    expect(serialize('{{ valueB + valueC // i18n(ph="PLACEHOLDER NAME") }}'))
+        .toEqual('{$placeholderName}');
+  });
+
+  it('should serialize content with HTML tags for `GetMsg()`', () => {
+    expect(serialize('A <span>B<div>C</div></span> D'))
+        .toEqual('A {$startTagSpan}B{$startTagDiv}C{$closeTagDiv}{$closeTagSpan} D');
+  });
+
+  it('should serialize simple ICU for `GetMsg()`', () => {
+    expect(serialize('{age, plural, 10 {ten} other {other}}'))
+        .toEqual('{VAR_PLURAL, plural, 10 {ten} other {other}}');
+  });
+
+  it('should serialize nested ICUs for `GetMsg()`', () => {
+    expect(serialize(
+               '{age, plural, 10 {ten {size, select, 1 {one} 2 {two} other {2+}}} other {other}}'))
+        .toEqual(
+            '{VAR_PLURAL, plural, 10 {ten {VAR_SELECT, select, 1 {one} 2 {two} other {2+}}} other {other}}');
+  });
+
+  it('should serialize ICU with nested HTML for `GetMsg()`', () => {
+    expect(serialize('{age, plural, 10 {<b>ten</b>} other {<div class="A">other</div>}}'))
+        .toEqual(
+            '{VAR_PLURAL, plural, 10 {{START_BOLD_TEXT}ten{CLOSE_BOLD_TEXT}} other {{START_TAG_DIV}other{CLOSE_TAG_DIV}}}');
+  });
+
+  it('should serialize ICU with nested HTML containing further ICUs for `GetMsg()`', () => {
+    expect(
+        serialize(
+            '{gender, select, male {male} female {female} other {other}}<div>{gender, select, male {male} female {female} other {other}}</div>'))
+        .toEqual('{$icu}{$startTagDiv}{$icu}{$closeTagDiv}');
+  });
+});
+
+describe('serializeI18nMessageForLocalize', () => {
+  const serialize = (input: string) => {
+    const tree = parse(`<div i18n>${input}</div>`);
+    const root = tree.nodes[0] as t.Element;
+    return serializeI18nMessageForLocalize(root.i18n as i18n.Message);
+  };
+
+  it('should serialize plain text for `$localize()`', () => {
+    expect(serialize('Some text')).toEqual({messageParts: ['Some text'], placeHolders: []});
+  });
+
+  it('should serialize text with interpolation for `$localize()`', () => {
+    expect(serialize('Some text {{ valueA }} and {{ valueB + valueC }} done')).toEqual({
+      messageParts: ['Some text ', ' and ', ' done'],
+      placeHolders: ['INTERPOLATION', 'INTERPOLATION_1']
+    });
+  });
+
+  it('should serialize text with interpolation at start for `$localize()`', () => {
+    expect(serialize('{{ valueA }} and {{ valueB + valueC }} done')).toEqual({
+      messageParts: ['', ' and ', ' done'],
+      placeHolders: ['INTERPOLATION', 'INTERPOLATION_1']
+    });
+  });
+
+
+  it('should serialize text with interpolation at end for `$localize()`', () => {
+    expect(serialize('Some text {{ valueA }} and {{ valueB + valueC }}')).toEqual({
+      messageParts: ['Some text ', ' and ', ''],
+      placeHolders: ['INTERPOLATION', 'INTERPOLATION_1']
+    });
+  });
+
+
+  it('should serialize only interpolation for `$localize()`', () => {
+    expect(serialize('{{ valueB + valueC }}'))
+        .toEqual({messageParts: ['', ''], placeHolders: ['INTERPOLATION']});
+  });
+
+
+  it('should serialize interpolation with named placeholder for `$localize()`', () => {
+    expect(serialize('{{ valueB + valueC // i18n(ph="PLACEHOLDER NAME") }}'))
+        .toEqual({messageParts: ['', ''], placeHolders: ['PLACEHOLDER_NAME']});
+  });
+
+
+  it('should serialize content with HTML tags for `$localize()`', () => {
+    expect(serialize('A <span>B<div>C</div></span> D')).toEqual({
+      messageParts: ['A ', 'B', 'C', '', ' D'],
+      placeHolders: ['START_TAG_SPAN', 'START_TAG_DIV', 'CLOSE_TAG_DIV', 'CLOSE_TAG_SPAN']
+    });
+  });
+
+
+  it('should serialize simple ICU for `$localize()`', () => {
+    expect(serialize('{age, plural, 10 {ten} other {other}}')).toEqual({
+      messageParts: ['{VAR_PLURAL, plural, 10 {ten} other {other}}'],
+      placeHolders: []
+    });
+  });
+
+
+  it('should serialize nested ICUs for `$localize()`', () => {
+    expect(serialize(
+               '{age, plural, 10 {ten {size, select, 1 {one} 2 {two} other {2+}}} other {other}}'))
+        .toEqual({
+          messageParts: [
+            '{VAR_PLURAL, plural, 10 {ten {VAR_SELECT, select, 1 {one} 2 {two} other {2+}}} other {other}}'
+          ],
+          placeHolders: []
+        });
+  });
+
+
+  it('should serialize ICU with nested HTML for `$localize()`', () => {
+    expect(serialize('{age, plural, 10 {<b>ten</b>} other {<div class="A">other</div>}}')).toEqual({
+      messageParts: [
+        '{VAR_PLURAL, plural, 10 {{START_BOLD_TEXT}ten{CLOSE_BOLD_TEXT}} other {{START_TAG_DIV}other{CLOSE_TAG_DIV}}}'
       ],
+      placeHolders: []
+    });
+  });
 
-      // content with HTML tags
-      [
-        'A <span>B<div>C</div></span> D',
-        'A {$startTagSpan}B{$startTagDiv}C{$closeTagDiv}{$closeTagSpan} D'
-      ],
+  it('should serialize ICU with nested HTML containing further ICUs for `$localize()`', () => {
+    expect(
+        serialize(
+            '{gender, select, male {male} female {female} other {other}}<div>{gender, select, male {male} female {female} other {other}}</div>'))
+        .toEqual({
+          messageParts: ['', '', '', '', ''],
+          placeHolders: ['ICU', 'START_TAG_DIV', 'ICU', 'CLOSE_TAG_DIV']
+        });
+  });
+});
 
-      // simple ICU
-      ['{age, plural, 10 {ten} other {other}}', '{VAR_PLURAL, plural, 10 {ten} other {other}}'],
+describe('serializeIcuNode', () => {
+  const serialize = (input: string) => {
+    const tree = parse(`<div i18n>${input}</div>`);
+    const rooti18n = (tree.nodes[0] as t.Element).i18n as i18n.Message;
+    return serializeIcuNode(rooti18n.nodes[0] as i18n.Icu);
+  };
 
-      // nested ICUs
-      [
-        '{age, plural, 10 {ten {size, select, 1 {one} 2 {two} other {2+}}} other {other}}',
-        '{VAR_PLURAL, plural, 10 {ten {VAR_SELECT, select, 1 {one} 2 {two} other {2+}}} other {other}}'
-      ],
+  it('should serialize a simple ICU', () => {
+    expect(serialize('{age, plural, 10 {ten} other {other}}'))
+        .toEqual('{VAR_PLURAL, plural, 10 {ten} other {other}}');
+  });
 
-      // ICU with nested HTML
-      [
-        '{age, plural, 10 {<b>ten</b>} other {<div class="A">other</div>}}',
-        '{VAR_PLURAL, plural, 10 {{$startBoldText}ten{$closeBoldText}} other {{$startTagDiv}other{$closeTagDiv}}}'
-      ]
-    ];
+  it('should serialize a next ICU', () => {
+    expect(serialize(
+               '{age, plural, 10 {ten {size, select, 1 {one} 2 {two} other {2+}}} other {other}}'))
+        .toEqual(
+            '{VAR_PLURAL, plural, 10 {ten {VAR_SELECT, select, 1 {one} 2 {two} other {2+}}} other {other}}');
+  });
 
-    cases.forEach(([input, output]) => { expect(serialize(input)).toEqual(output); });
+  it('should serialize ICU with nested HTML', () => {
+    expect(serialize('{age, plural, 10 {<b>ten</b>} other {<div class="A">other</div>}}'))
+        .toEqual(
+            '{VAR_PLURAL, plural, 10 {{START_BOLD_TEXT}ten{CLOSE_BOLD_TEXT}} other {{START_TAG_DIV}other{CLOSE_TAG_DIV}}}');
   });
 });
